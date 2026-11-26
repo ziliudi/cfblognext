@@ -191,7 +191,6 @@ async function handlerRequest(event){
     return new Response("Unauthorized",{
       headers:{
         "WWW-Authenticate":'Basic realm="cfblog"',
-        "Access-Control-Allow-Origin":"*"
       },
       status:401
     });
@@ -962,23 +961,32 @@ async function handle_admin(request){
 //访问管理后台或私密博客，则进行Base Auth
 function parseBasicAuth(request){
     const auth=request.headers.get("Authorization");
+
+    // 仅允许配置了独立 token 后，通过 token 导出公开的搜索索引和站点地图。
     if(!auth||!/^Basic [A-Za-z0-9._~+/-]+=*$/i.test(auth)){
         const token = request.headers.get("cfblog_token");
-        if(token){
-            //获取url请求对象
-            let url=new URL(request.url)
-            let paths=url.pathname.trim("/").split("/")
-
-            //校验权限
-            if("admin"==paths[0] && ("search.xml"==paths[1]||"sitemap.xml"==paths[1])){
-                return token === ACCOUNT.third_token
+        if(token && ACCOUNT.third_token){
+            const url=new URL(request.url);
+            const paths=url.pathname.trim("/").split("/");
+            if("admin"===paths[0] && ("search.xml"===paths[1] || "sitemap.xml"===paths[1])){
+                return token === ACCOUNT.third_token;
             }
         }
         return false;
     }
-    const[user,pwd]=atob(auth.split(" ").pop()).split(":");
-    console.log("-----parseBasicAuth----- ", user, pwd)
-    return user===ACCOUNT.user && pwd===ACCOUNT.password
+
+    // Basic Auth 的密码可能包含冒号；只在第一个冒号处分隔用户名和密码。
+    try{
+        const decoded=atob(auth.split(" ").pop());
+        const separator=decoded.indexOf(":");
+        if(separator<0) return false;
+        const user=decoded.slice(0,separator);
+        const pwd=decoded.slice(separator+1);
+        // 不要记录用户名/密码，避免凭据进入 Workers 日志。
+        return user===ACCOUNT.user && pwd===ACCOUNT.password;
+    }catch(error){
+        return false;
+    }
 }
 
 //获取所有【公开】文章：仅前台使用

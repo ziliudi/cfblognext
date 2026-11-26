@@ -54,7 +54,9 @@ CFBlog-Plus 是基于原始开源项目 `gdtool/cloudflare-workers-blog` 二次�
 ### 安全加固说明
 
 - 后台认证拒绝空凭据及仓库占位凭据。
-- 后台跨站写请求会进行 Origin / Fetch Metadata 检查。
+- 后台写操作仅允许 POST，读取操作使用 GET/HEAD 白名单，避免通过 GET 链接触发删除、发布或保存。
+- 后台写请求会校验 Origin / Fetch Metadata；请求体声明长度超过限制时拒绝处理。
+- Sitemap 的日期、更新频率和优先级字段使用白名单校验，避免异常 KV 数据破坏 XML。
 - 响应统一添加 `X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy` 和 `Permissions-Policy` 等安全响应头。
 - 文章编辑接口会校验文章 ID、字段长度、分类/标签数量，并要求定时发布时间有效且在未来。
 

@@ -609,7 +609,7 @@ async function handle_search(request){
         xml+="\n\t\t<content>"+escapeXml(article.contentMD)+"</content>"
       }
       xml+="\n\t\t<url>"+escapeXml("https://"+OPT.siteDomain+"/article/"+articles_all[i].id+"/"+articles_all[i].link+".html")+"</url>",
-      xml+="\n\t\t<time>"+articles_all[i].createDate.substr(0,10)+"</time>",
+      xml+="\n\t\t<time>"+escapeXml(safeSitemapDate(articles_all[i].createDate))+"</time>",
       xml+="\n\t</blog>";
     }
     xml+="\n</blogs>"
@@ -964,8 +964,8 @@ async function handle_admin(request){
       if(null != article){
         xml+="\n\t\t<content>"+escapeXml(article.contentMD)+"</content>"
       }
-      xml+="\n\t\t<url>https://"+OPT.siteDomain+"/article/"+articles_all[i].id+"/"+articles_all[i].link+".html</url>",
-      xml+="\n\t\t<time>"+articles_all[i].createDate.substr(0,10)+"</time>",
+      xml+="\n\t\t<url>"+escapeXml("https://"+OPT.siteDomain+"/article/"+articles_all[i].id+"/"+articles_all[i].link+".html")+"</url>",
+      xml+="\n\t\t<time>"+escapeXml(safeSitemapDate(articles_all[i].createDate))+"</time>",
       xml+="\n\t</blog>";
     }
     xml+="\n</blogs>"

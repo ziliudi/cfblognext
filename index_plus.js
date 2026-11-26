@@ -936,16 +936,16 @@ async function handle_admin(request){
   //新建文章
   if("saveAddNew"==paths[1]){
     const ret=await parseReq(request);
-    let title=ret.title,//文章标题
-        img=ret.img,//插图
-        link=ret.link,//永久链接
-        createDate=ret.createDate.replace('T',' '),//发布日期
-        category=ret.category,//分类
-        tags=ret.tags,//标签
+    let title=String(ret.title||(ret.status==="draft"?"未命名草稿":"")),//文章标题
+        img=ret.img||"",//插图
+        link=ret.link||"",//永久链接
+        createDate=String(ret.createDate||"").replace('T',' '),//发布日期
+        category=Array.isArray(ret.category)?ret.category:(ret.category?[ret.category]:[]),//分类
+        tags=Array.isArray(ret.tags)?ret.tags:(ret.tags?[ret.tags]:[]),//标签
         priority=void 0===ret.priority?"0.5":ret.priority,//权重
         changefreq=void 0===ret.changefreq?"daily":ret.changefreq,//更新频率
-        contentMD=ret["content-markdown-doc"],//文章内容-md格式
-        contentHtml=ret["content-html-code"],//文章内容-html格式
+        contentMD=String(ret["content-markdown-doc"]||""),//文章内容-md格式
+        contentHtml=String(ret["content-html-code"]||""),//文章内容-html格式
         contentText="",//文章摘要
         top_timestamp=ret.top_timestamp*1,//置顶时间戳，不置顶时为0
         modify_timestamp=new Date().getTime()+8*60*60*1000,//修改时间戳
@@ -956,11 +956,8 @@ async function handle_admin(request){
     
     //校验参数完整性
     if(title.length>0
-      && createDate.length>0
-      && category.length>0
-      && contentMD.length>0
-      && contentHtml.length>0
-      && (status!=="scheduled" || Number.isFinite(Date.parse(scheduledAt)) )){
+      && (status==="draft" || (createDate.length>0 && category.length>0 && contentMD.length>0 && contentHtml.length>0))
+      && (status!=="scheduled" || Number.isFinite(Date.parse(scheduledAt)))){
 
       id=await generateId(),
       contentText=contentHtml.replace(/<\/?[^>]*>/g,"").trim().substring(0,OPT.readMoreLength);//摘要
@@ -1064,10 +1061,7 @@ async function handle_admin(request){
         
     //校验参数完整性
     if(title.length>0
-      && createDate.length>0
-      && category.length>0
-      && contentMD.length>0
-      && contentHtml.length>0
+      && (status==="draft" || (createDate.length>0 && category.length>0 && contentMD.length>0 && contentHtml.length>0))
       && (status!=="scheduled" || Number.isFinite(Date.parse(scheduledAt)))){
           
       contentText=contentHtml.replace(/<\/?[^>]*>/g,"").trim().substring(0,OPT.readMoreLength);//摘要
@@ -1367,40 +1361,30 @@ async function admin_nextPage(pageNo,pageSize=OPT.pageSize){
 
 //解析后台请求的参数
 async function parseReq(request){
-    const content_type=request.headers.get("content-type")||"";
-    //json格式
-    if(content_type.includes("application/json")){
-    let json=JSON.stringify(await request.json()),
-        content_type=JSON.parse(json),
-        settings={category:[],top_timestamp:0, hidden:0};
-        for(var i=0;i<content_type.length;i++){
-            if("tags"==content_type[i].name){//标签，用逗号分隔
-                settings[content_type[i].name]=content_type[i].value.split(",")
-            }else if(content_type[i].name.includes("category")){
-                settings.category.push(content_type[i].value)
+    const contentType=request.headers.get("content-type")||"";
+    if(contentType.includes("application/json") || contentType.includes("form")){
+        const payload=contentType.includes("application/json")?await request.json():await request.formData();
+        const pairs=Array.isArray(payload)
+            ? payload.map(item=>[item.name,item.value])
+            : (payload instanceof FormData ? Array.from(payload.entries()) : Object.entries(payload));
+        const settings={category:[],top_timestamp:0,hidden:0};
+        for(const [name,value] of pairs){
+            if(!name) continue;
+            if(name==="tags"){
+                settings.tags=Array.isArray(value)?value:(String(value||"").split(",").map(tag=>tag.trim()).filter(Boolean));
+            }else if(String(name).toLowerCase().includes("category")){
+                settings.category.push(...(Array.isArray(value)?value:[value]).filter(v=>v!==""&&v!=null));
             }else{
-                settings[content_type[i].name]=content_type[i].value
+                settings[name]=value;
             }
         }
-        return settings
+        return settings;
     }
-    if(content_type.includes("application/text")){
+    if(contentType.includes("application/text") || contentType.includes("text/html")){
         return await request.text();
     }
-    if(content_type.includes("text/html")){
-        return await request.text();
-    }
-    if(content_type.includes("form")){
-        const formData=await request.formData(),
-                ret={};
-        for(const field of formData.entries())
-            ret[field[0]]=field[1];
-        return JSON.stringify(ret)
-    }
-    {
-        const blob=await request.blob();
-        return URL.createObjectURL(blob)
-    }
+    const blob=await request.blob();
+    return URL.createObjectURL(blob);
 }
 
 //为文章分配ID

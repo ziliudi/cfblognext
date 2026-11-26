@@ -191,20 +191,18 @@ async function handlerRequest(event){
     return new Response("Unauthorized",{
       headers:{
         "WWW-Authenticate":'Basic realm="cfblog"',
-        "Access-Control-Allow-Origin":"*"
       },
       status:401
     });
   }
 
-  //组装请求url，查看是否有缓存
+  //组装缓存请求：保留查询参数，避免主题预览/分页参数互相污染缓存
   const D=caches.default,
-      M="https://"+OPT.siteDomain+url.pathname,
-      x=new Request(M, request);
-  console.log("cacheFullPath:",M);
-  let k=await D.match(x);
+      M="https://"+OPT.siteDomain+url.pathname+url.search,
+      cacheable = request.method === "GET" && paths[0] !== "admin",
+      x = cacheable ? new Request(M, { method: "GET" }) : null;
+  let k = cacheable ? await D.match(x) : null;
   if(k){
-    console.log("hit cache!")
     return k;
   }
 
@@ -243,13 +241,13 @@ async function handlerRequest(event){
       })
       break;
   }  
-  //设置浏览器缓存时间:后台不缓存、只缓存前台
+  //后台及非 GET 请求不缓存；仅缓存成功的前台 GET 响应
   try{
-    if("admin"==paths[0]){
+    if("admin"==paths[0] || request.method !== "GET"){
       k.headers.set("Cache-Control","no-store")
-    }else{
-      k.headers.set("Cache-Control","public, max-age="+OPT.cacheTime),
-      event.waitUntil(D.put(M,k.clone()))
+    }else if(cacheable && k.status === 200){
+      k.headers.set("Cache-Control","public, max-age="+OPT.cacheTime);
+      event.waitUntil(D.put(x,k.clone()));
     }
   }catch(e){}
   
@@ -962,23 +960,32 @@ async function handle_admin(request){
 //访问管理后台或私密博客，则进行Base Auth
 function parseBasicAuth(request){
     const auth=request.headers.get("Authorization");
+
+    // 仅允许配置了独立 token 后，通过 token 导出公开的搜索索引和站点地图。
     if(!auth||!/^Basic [A-Za-z0-9._~+/-]+=*$/i.test(auth)){
         const token = request.headers.get("cfblog_token");
-        if(token){
-            //获取url请求对象
-            let url=new URL(request.url)
-            let paths=url.pathname.trim("/").split("/")
-
-            //校验权限
-            if("admin"==paths[0] && ("search.xml"==paths[1]||"sitemap.xml"==paths[1])){
-                return token === ACCOUNT.third_token
+        if(token && ACCOUNT.third_token){
+            const url=new URL(request.url);
+            const paths=url.pathname.trim("/").split("/");
+            if("admin"===paths[0] && ("search.xml"===paths[1] || "sitemap.xml"===paths[1])){
+                return token === ACCOUNT.third_token;
             }
         }
         return false;
     }
-    const[user,pwd]=atob(auth.split(" ").pop()).split(":");
-    console.log("-----parseBasicAuth----- ", user, pwd)
-    return user===ACCOUNT.user && pwd===ACCOUNT.password
+
+    // Basic Auth 的密码可能包含冒号；只在第一个冒号处分隔用户名和密码。
+    try{
+        const decoded=atob(auth.split(" ").pop());
+        const separator=decoded.indexOf(":");
+        if(separator<0) return false;
+        const user=decoded.slice(0,separator);
+        const pwd=decoded.slice(separator+1);
+        // 不要记录用户名/密码，避免凭据进入 Workers 日志。
+        return user===ACCOUNT.user && pwd===ACCOUNT.password;
+    }catch(error){
+        return false;
+    }
 }
 
 //获取所有【公开】文章：仅前台使用

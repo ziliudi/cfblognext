@@ -141,6 +141,112 @@ Disallow: /admin`,//robots.txt设置
       mdEditor.setToolbarHandler(mdEditor.getToolbarHandles())
     },300)
 
+    //切换为所见即所得富文本编辑器。底层仍保存 Markdown + HTML，兼容现有文章数据与主题。
+    (function(){
+      const loadScript = src => new Promise((resolve,reject) => {
+        const script=document.createElement("script");
+        script.src=src;
+        script.onload=resolve;
+        script.onerror=reject;
+        document.head.appendChild(script);
+      });
+      const addStyle = href => {
+        const link=document.createElement("link");
+        link.rel="stylesheet";
+        link.href=href;
+        document.head.appendChild(link);
+      };
+      addStyle("https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css");
+      Promise.all([
+        loadScript("https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"),
+        loadScript("https://cdn.jsdelivr.net/npm/turndown@7.2.0/dist/turndown.js")
+      ]).then(function(){
+        const contentBox=document.getElementById("content");
+        if(!contentBox || !window.Quill || !window.TurndownService) return;
+        const form=document.getElementById("editForm") || document.getElementById("addNewForm");
+        const findOrCreateField=(name)=>{
+          let field=document.querySelector('textarea[name="'+name+'"]');
+          if(!field){
+            field=document.createElement("textarea");
+            field.name=name;
+            field.style.display="none";
+            (form || contentBox).appendChild(field);
+          }
+          return field;
+        };
+        const markdownField=findOrCreateField("content-markdown-doc");
+        const htmlField=findOrCreateField("content-html-code");
+        const richHost=document.createElement("div");
+        richHost.id="cfblog-rich-editor";
+        richHost.style.cssText="height:560px;background:#fff;margin:12px 0 24px;";
+        contentBox.parentNode.insertBefore(richHost,contentBox.nextSibling);
+        contentBox.style.display="none";
+
+        const quill=new Quill(richHost,{
+          theme:"snow",
+          modules:{toolbar:[
+            [{header:[1,2,3,4,false]}],
+            ["bold","italic","underline","strike"],
+            [{color:[]},{background:[]}],
+            [{list:"ordered"},{list:"bullet"}],
+            [{indent:"-1"},{indent:"+1"}],
+            ["blockquote","code-block"],
+            ["link"],
+            ["clean"]
+          ]}
+        });
+        const article=window.articleJson || {};
+        const initialHtml=article.contentHtml || "";
+        if(initialHtml){
+          quill.clipboard.dangerouslyPasteHTML(initialHtml);
+        }else if(window.mdEditor && mdEditor.getMarkdown()){
+          // 新文章/旧数据缺少 HTML 时，尽量沿用原 Markdown 编辑器内容。
+          markdownField.value=mdEditor.getMarkdown();
+        }
+        const turndown=new TurndownService({
+          headingStyle:"atx",
+          codeBlockStyle:"fenced",
+          bulletListMarker:"-"
+        });
+        const syncContent=function(){
+          const html=quill.root.innerHTML;
+          htmlField.value=html;
+          markdownField.value=turndown.turndown(html);
+        };
+        quill.on("text-change",syncContent);
+        syncContent();
+        window.cfblogRichEditor=quill;
+        window.cfblogSyncRichEditor=syncContent;
+
+        // 保存前同步富文本内容到原有表单字段，后端接口无需改变。
+        if(typeof window.saveEdit==="function" && !window.saveEdit._richWrapped){
+          const originalSaveEdit=window.saveEdit;
+          const wrappedSaveEdit=function(){
+            syncContent();
+            return originalSaveEdit.apply(this,arguments);
+          };
+          wrappedSaveEdit._richWrapped=true;
+          window.saveEdit=wrappedSaveEdit;
+        }
+        if(typeof window.saveAddNew==="function" && !window.saveAddNew._richWrapped){
+          const originalSaveAddNew=window.saveAddNew;
+          const wrappedSaveAddNew=function(){
+            syncContent();
+            return originalSaveAddNew.apply(this,arguments);
+          };
+          wrappedSaveAddNew._richWrapped=true;
+          window.saveAddNew=wrappedSaveAddNew;
+        }
+        const saveButton=document.querySelector("#btn_saveEdit, #btn_saveAddNew, #btn_save");
+        if(saveButton){
+          saveButton.addEventListener("click",syncContent,true);
+        }
+      }).catch(function(error){
+        console.error("富文本编辑器加载失败，已保留原 Markdown 编辑器。",error);
+        alert("富文本编辑器加载失败，请检查网络后刷新页面；原 Markdown 编辑器仍可使用。");
+      });
+    })();
+
     //默认图片，工具：https://tool.lu/imageholder/
     if($('#img').val()=="")$('#img').val('https://cdn.jsdelivr.net/gh/Arronlong/cdn@master/cfblog/cfblog-plus.png');
     //默认时间设置为当前时间

@@ -757,7 +757,7 @@ async function handle_admin(request){
     //遍历所有文章，汇集所有的tag
     for(var i=0;i<articles_all.length;i++){
       //若文章设定了标签
-      if("object"==typeof articles_all[i].tags){
+      if(articles_all[i].status!=="draft" && articles_all[i].status!=="scheduled" && !articles_all[i].hidden && "object"==typeof articles_all[i].tags){
         //将所有tags存入e中
         for(var j=0;j<articles_all[i].tags.length;j++){
           if(articles_all[i].tags[j] 
@@ -947,7 +947,8 @@ async function handle_admin(request){
       && createDate.length>0
       && category.length>0
       && contentMD.length>0
-      && contentHtml.length>0){
+      && contentHtml.length>0
+      && (status!=="scheduled" || Number.isFinite(Date.parse(scheduledAt)) )){
 
       id=await generateId(),
       contentText=contentHtml.replace(/<\/?[^>]*>/g,"").trim().substring(0,OPT.readMoreLength);//摘要

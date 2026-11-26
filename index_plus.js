@@ -3,9 +3,10 @@
 'use strict';
 const ACCOUNT = { //账号相关，安全性更高
 
-  "user" : "admin", //博客后台用户名
-  "password" : "cfblog-plus", //博客后台密码
-  "third_token" : "cfblog", //开放token，当前仅允许访问/admin/search.xml，/admin/sitemap.xml时可用，在cfblog_token的头信息中传递
+  // 部署前必须设置为仅自己知道的强凭据；留空或保留占位值时后台认证会拒绝所有请求。
+  "user" : "CHANGE_ME_ADMIN_USER", //博客后台用户名
+  "password" : "CHANGE_ME_USE_A_LONG_RANDOM_PASSWORD", //建议使用至少 20 位随机密码
+  "third_token" : "", //可选的只读导出 Token；不使用时保持为空
   "cacheZoneId":"935xxxxxxxxxxxx",//区域 ID
   "cacheToken":"AQxxxxxxxx",//API token
 
@@ -355,14 +356,25 @@ async function handlerRequest(event){
   let url=new URL(request.url)
   let paths=url.pathname.trim("/").split("/")
 
-  //校验权限
+  // 后台与私密博客统一认证。不要将凭据写入日志或错误响应。
   if(("admin"==paths[0]||true===OPT.privateBlog) &&!parseBasicAuth(request)){
-    return new Response("Unauthorized",{
-      headers:{
-        "WWW-Authenticate":'Basic realm="cfblog"',
-      },
+    return withSecurityHeaders(new Response("Unauthorized",{
+      headers:{"WWW-Authenticate":'Basic realm="cfblog"'},
       status:401
-    });
+    }));
+  }
+
+  // CSRF 基础防护：拒绝跨站写请求。兼容不发送 Origin 的旧客户端，
+  // 但浏览器明确标记为 cross-site 的请求一律拒绝。
+  if(paths[0]==="admin" && !["GET","HEAD","OPTIONS"].includes(request.method.toUpperCase())){
+    const origin=request.headers.get("Origin");
+    const fetchSite=request.headers.get("Sec-Fetch-Site");
+    if((origin && origin!==url.origin) || fetchSite==="cross-site"){
+      return withSecurityHeaders(new Response("Forbidden",{
+        headers:{"Content-Type":"text/plain;charset=UTF-8"},
+        status:403
+      }));
+    }
   }
 
   //组装缓存请求：保留查询参数，避免主题预览/分页参数互相污染缓存
@@ -374,7 +386,7 @@ async function handlerRequest(event){
       x = cacheable ? new Request(M, { method: "GET" }) : null;
   let k = cacheable ? await D.match(x) : null;
   if(k){
-    return k;
+    return withSecurityHeaders(k);
   }
 
   switch(paths[0]){
@@ -422,7 +434,18 @@ async function handlerRequest(event){
     }
   }catch(e){}
   
-  return k
+  return withSecurityHeaders(k)
+}
+
+// 为所有响应统一添加浏览器安全响应头；不过度限制 CSP，以免破坏现有主题及后台脚本。
+function withSecurityHeaders(response){
+  const headers=new Headers(response.headers);
+  headers.set("X-Content-Type-Options","nosniff");
+  headers.set("X-Frame-Options","SAMEORIGIN");
+  headers.set("Referrer-Policy","strict-origin-when-cross-origin");
+  headers.set("Permissions-Policy","camera=(), microphone=(), geolocation=()");
+  if(headers.get("Cache-Control")===null) headers.set("Cache-Control","no-store");
+  return new Response(response.body,{status:response.status,statusText:response.statusText,headers});
 }
 
 /**------【③.分而治之：各种请求分开处理】-----**/
@@ -832,15 +855,14 @@ async function handle_admin(request){
   
   //导入
   if("import"==paths[1]){
-    let importJsone=(await parseReq(request)).importJson;
-    console.log("开始导入",typeof importJson)
+    const importJson=(await parseReq(request)).importJson;
+    console.log("开始导入");
     
     if(checkFormat(importJson)){
-      let importJson=JSON.parse(importJson),
-          keys=Object.keys(importJson);
+      const importData=JSON.parse(importJson),
+          keys=Object.keys(importData);
       for(let i=0;i<keys.length;++i){
-        console.log(keys[i],importJson[keys[i]]),
-        await saveArticle(keys[i],importJson[keys[i]]);
+        await saveArticle(keys[i],importData[keys[i]]);
       }
       json = '{"msg":"import success!","rst":true}'
     }else{
@@ -1171,7 +1193,7 @@ function parseBasicAuth(request){
             const url=new URL(request.url);
             const paths=url.pathname.trim("/").split("/");
             if("admin"===paths[0] && ("search.xml"===paths[1] || "sitemap.xml"===paths[1])){
-                return token === ACCOUNT.third_token;
+                return token === ACCOUNT.third_token && !String(ACCOUNT.third_token).startsWith("CHANGE_ME_");
             }
         }
         return false;
@@ -1185,7 +1207,13 @@ function parseBasicAuth(request){
         const user=decoded.slice(0,separator);
         const pwd=decoded.slice(separator+1);
         // 不要记录用户名/密码，避免凭据进入 Workers 日志。
-        return user===ACCOUNT.user && pwd===ACCOUNT.password;
+        // 拒绝仓库示例凭据及空凭据，避免新部署沿用公开默认密码。
+        const configuredUser=String(ACCOUNT.user||"");
+        const configuredPassword=String(ACCOUNT.password||"");
+        if(!configuredUser || !configuredPassword ||
+           configuredUser.startsWith("CHANGE_ME_") ||
+           configuredPassword.startsWith("CHANGE_ME_")) return false;
+        return user===configuredUser && pwd===configuredPassword;
     }catch(error){
         return false;
     }

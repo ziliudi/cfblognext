@@ -248,6 +248,37 @@ Disallow: /admin`,//robots.txt设置
       });
     })();
 
+    //文章工作流：草稿 / 立即发布 / 定时发布
+    (function(){
+      const form=document.querySelector("form#addNewForm, form#editForm");
+      if(!form) return;
+      const article=(typeof articleJson!=="undefined" && articleJson) || window.articleJson || {};
+      const workflow=document.createElement("div");
+      workflow.className="form-group";
+      workflow.innerHTML='<label for="cfblog-status">文章状态</label><select class="form-control" id="cfblog-status" name="status"><option value="published">立即发布</option><option value="draft">保存为草稿</option><option value="scheduled">定时发布</option></select><div id="cfblog-schedule-wrap" style="margin-top:10px;display:none"><label for="cfblog-scheduled-at">计划发布时间</label><input class="form-control" type="datetime-local" id="cfblog-scheduled-at"><input type="hidden" name="scheduledAt" id="cfblog-scheduledAt-iso"><small class="help-block">按你浏览器所在时区选择，保存时自动转换为 UTC。</small></div>';
+      const last=form.querySelector(".form-group:last-of-type");
+      if(last) last.after(workflow); else form.appendChild(workflow);
+      const status=workflow.querySelector("#cfblog-status");
+      const date=workflow.querySelector("#cfblog-scheduled-at");
+      const iso=workflow.querySelector("#cfblog-scheduledAt-iso");
+      status.value=["draft","scheduled"].includes(article.status)?article.status:"published";
+      if(article.scheduledAt){
+        const parsed=new Date(article.scheduledAt);
+        if(!isNaN(parsed.getTime())){
+          const local=new Date(parsed.getTime()-parsed.getTimezoneOffset()*60000);
+          date.value=local.toISOString().slice(0,16);
+        }
+      }
+      const update=function(){
+        workflow.querySelector("#cfblog-schedule-wrap").style.display=status.value==="scheduled"?"block":"none";
+        iso.value=date.value?new Date(date.value).toISOString():"";
+      };
+      status.addEventListener("change",update);
+      date.addEventListener("change",update);
+      form.addEventListener("submit",update,true);
+      update();
+    })();
+
     //默认图片，工具：https://tool.lu/imageholder/
     if($('#img').val()=="")$('#img').val('https://cdn.jsdelivr.net/gh/Arronlong/cdn@master/cfblog/cfblog-plus.png');
     //默认时间设置为当前时间
@@ -1218,6 +1249,45 @@ async function getThemeHtml(template_path){
   //对后台编辑页下手
   if("admin/index|admin/editor".includes(template_path)){
       html = html.replace("$('#WidgetCategory').val(JSON.stringify(categoryJson))",OPT.editor_page_scripts+"$('#WidgetCategory').val(JSON.stringify(categoryJson))")
+  }
+  if("admin/index"===template_path){
+    html += `
+      <script>
+      (function(){
+        function mountWorkflowPanel(){
+          if(document.getElementById("cfblog-workflow-panel")) return;
+          const panel=document.createElement("section");
+          panel.id="cfblog-workflow-panel";
+          panel.className="panel panel-default";
+          panel.style.margin="20px 0";
+          panel.innerHTML='<div class="panel-heading"><strong>内容管理</strong> <button type="button" class="btn btn-xs btn-default" id="cfblog-workflow-refresh" style="float:right">刷新</button></div><div class="panel-body"><div class="row"><div class="col-sm-6"><h4>草稿箱 <span class="badge" id="cfblog-draft-count">0</span></h4><ul id="cfblog-draft-list" class="list-unstyled"><li>加载中…</li></ul></div><div class="col-sm-6"><h4>定时发布 <span class="badge" id="cfblog-scheduled-count">0</span></h4><ul id="cfblog-scheduled-list" class="list-unstyled"><li>加载中…</li></ul></div></div></div>';
+          const target=document.querySelector("#myTab")||document.querySelector(".container")||document.body;
+          target.parentNode.insertBefore(panel,target.nextSibling);
+          async function load(){
+            for(const type of ["Drafts","Scheduled"]){
+              const key=type.toLowerCase(),list=document.getElementById("cfblog-"+key+"-list"),count=document.getElementById("cfblog-"+key+"-count");
+              try{
+                const response=await fetch("/admin/get"+type,{credentials:"same-origin",cache:"no-store"});
+                if(!response.ok) throw new Error("HTTP "+response.status);
+                const items=await response.json();
+                count.textContent=items.length;
+                list.innerHTML="";
+                if(!items.length){list.innerHTML="<li>暂无内容</li>";continue;}
+                items.forEach(item=>{
+                  const li=document.createElement("li"),a=document.createElement("a"),meta=document.createElement("small");
+                  a.href="/admin/edit/"+encodeURIComponent(item.id);a.textContent=item.title||("未命名文章 "+item.id);
+                  meta.textContent=type==="Scheduled"?" · "+(item.scheduledAt||"未设置时间"):" · 草稿";
+                  li.appendChild(a);li.appendChild(meta);list.appendChild(li);
+                });
+              }catch(error){list.textContent="加载失败，请刷新重试";}
+            }
+          }
+          document.getElementById("cfblog-workflow-refresh").addEventListener("click",load);
+          load();
+        }
+        if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",mountWorkflowPanel); else mountWorkflowPanel();
+      })();
+      </script>`;
   }
   
   return html

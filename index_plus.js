@@ -367,8 +367,10 @@ async function handlerRequest(event){
 
   //组装缓存请求：保留查询参数，避免主题预览/分页参数互相污染缓存
   const D=caches.default,
-      M="https://"+OPT.siteDomain+url.pathname+url.search,
       cacheable = request.method === "GET" && paths[0] !== "admin",
+      cacheVersion = cacheable ? (await CFBLOG.get("SYSTEM_PUBLIC_CACHE_VERSION") || "1") : "",
+      // 文章索引更新时递增版本号，避免依赖可选的 Zone API Token 才能让新内容即时生效。
+      M="https://"+OPT.siteDomain+url.pathname+url.search+(url.search?"&":"?")+"__cfblogv="+encodeURIComponent(cacheVersion),
       x = cacheable ? new Request(M, { method: "GET" }) : null;
   let k = cacheable ? await D.match(x) : null;
   if(k){
@@ -1466,7 +1468,12 @@ async function saveKV(key,value){
 
 //写入KV，获取所有文章（含公开+隐藏）:仅后台使用
 async function saveArticlesList(value){
-  return await saveKV("SYSTEM_INDEX_LIST",value);
+  const saved=await saveKV("SYSTEM_INDEX_LIST",value);
+  if(saved){
+    const current=Number(await CFBLOG.get("SYSTEM_PUBLIC_CACHE_VERSION"))||1;
+    await CFBLOG.put("SYSTEM_PUBLIC_CACHE_VERSION",String(current+1));
+  }
+  return saved;
 }
 //写入KV，最新文章序号（不删除文章时，等于文章数量），用于计算下个文章id
 async function saveIndexNum(value){

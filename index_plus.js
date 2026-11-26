@@ -567,7 +567,7 @@ async function handle_search(request){
       if(null != article){
         xml+="\n\t\t<content>"+escapeXml(article.contentMD)+"</content>"
       }
-      xml+="\n\t\t<url>https://"+OPT.siteDomain+"/article/"+articles_all[i].id+"/"+articles_all[i].link+".html</url>",
+      xml+="\n\t\t<url>"+escapeXml("https://"+OPT.siteDomain+"/article/"+articles_all[i].id+"/"+articles_all[i].link+".html")+"</url>",
       xml+="\n\t\t<time>"+articles_all[i].createDate.substr(0,10)+"</time>",
       xml+="\n\t</blog>";
     }
@@ -918,10 +918,10 @@ async function handle_admin(request){
     let xml='<?xml version="1.0" encoding="UTF-8"?>\n<blogs>';
     for(var i=0;i<articles_all.length;i++){
       xml+="\n\t<blog>",
-      xml+="\n\t\t<title>"+articles_all[i].title+"</title>";
+      xml+="\n\t\t<title>"+escapeXml(articles_all[i].title)+"</title>";
       let article = await getArticle(articles_all[i].id);
       if(null != article){
-        xml+="\n\t\t<content>"+article.contentMD.replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('&','&amp;')+"</content>"
+        xml+="\n\t\t<content>"+escapeXml(article.contentMD)+"</content>"
       }
       xml+="\n\t\t<url>https://"+OPT.siteDomain+"/article/"+articles_all[i].id+"/"+articles_all[i].link+".html</url>",
       xml+="\n\t\t<time>"+articles_all[i].createDate.substr(0,10)+"</time>",
@@ -942,7 +942,7 @@ async function handle_admin(request){
     let xml='<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd" xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
     for(var i=0;i<articles_all.length;i++){
       xml+="\n\t<url>",
-      xml+="\n\t\t<loc>https://"+OPT.siteDomain+"/article/"+articles_all[i].id+"/"+articles_all[i].link+".html</loc>",
+      xml+="\n\t\t<loc>"+escapeXml("https://"+OPT.siteDomain+"/article/"+articles_all[i].id+"/"+articles_all[i].link+".html")+"</loc>",
       xml+="\n\t\t<lastmod>"+articles_all[i].createDate.substr(0,10)+"</lastmod>",
       xml+="\n\t\t<changefreq>"+(void 0===articles_all[i].changefreq?"daily":articles_all[i].changefreq)+"</changefreq>",
       xml+="\n\t\t<priority>"+(void 0===articles_all[i].priority?"0.5":articles_all[i].priority)+"</priority>",

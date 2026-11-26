@@ -487,7 +487,7 @@ function escapeXml(value){
 // sitemap 字段使用白名单，避免 KV 中异常值注入 XML 标签或非法元数据。
 function safeSitemapDate(value){
   const date=String(value||"").slice(0,10);
-  return /^\\d{4}-\\d{2}-\\d{2}$/.test(date) && !Number.isNaN(Date.parse(date)) ? date : new Date().toISOString().slice(0,10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) && !Number.isNaN(Date.parse(date)) ? date : new Date().toISOString().slice(0,10);
 }
 function safeSitemapChangefreq(value){
   const allowed=["always","hourly","daily","weekly","monthly","yearly","never"];

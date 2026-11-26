@@ -959,7 +959,7 @@ async function handle_admin(request){
     //校验参数完整性
     if(title.length>0
       && (status==="draft" || (createDate.length>0 && category.length>0 && contentMD.length>0 && contentHtml.length>0))
-      && (status!=="scheduled" || Number.isFinite(Date.parse(scheduledAt)))){
+      && (status!=="scheduled" || (Number.isFinite(Date.parse(scheduledAt)) && Date.parse(scheduledAt)>Date.now()))){
 
       id=await generateId(),
       contentText=contentHtml.replace(/<\/?[^>]*>/g,"").trim().substring(0,OPT.readMoreLength);//摘要
@@ -1277,7 +1277,7 @@ async function getThemeHtml(template_path){
           panel.className="panel panel-default";
           panel.style.margin="20px 0";
           panel.innerHTML='<div class="panel-heading"><strong>内容管理</strong> <button type="button" class="btn btn-xs btn-default" id="cfblog-workflow-refresh" style="float:right">刷新</button></div><div class="panel-body"><div class="row"><div class="col-sm-6"><h4>草稿箱 <span class="badge" id="cfblog-draft-count">0</span></h4><ul id="cfblog-draft-list" class="list-unstyled"><li>加载中…</li></ul></div><div class="col-sm-6"><h4>定时发布 <span class="badge" id="cfblog-scheduled-count">0</span></h4><ul id="cfblog-scheduled-list" class="list-unstyled"><li>加载中…</li></ul></div></div></div>';
-          const target=document.querySelector("#myTab")||document.querySelector(".container")||document.body;
+          const target=document.querySelector(".tab-content")||document.querySelector("#myTab")||document.querySelector(".container")||document.body;
           target.parentNode.insertBefore(panel,target.nextSibling);
           async function load(){
             for(const type of ["Drafts","Scheduled"]){
@@ -1292,7 +1292,7 @@ async function getThemeHtml(template_path){
                 items.forEach(item=>{
                   const li=document.createElement("li"),a=document.createElement("a"),meta=document.createElement("small");
                   a.href="/admin/edit/"+encodeURIComponent(item.id);a.textContent=item.title||("未命名文章 "+item.id);
-                  meta.textContent=type==="Scheduled"?" · "+(item.scheduledAt||"未设置时间"):" · 草稿";
+                  meta.textContent=type==="Scheduled"?" · "+(item.scheduledAt?new Date(item.scheduledAt).toLocaleString():"未设置时间"):" · 草稿";
                   li.appendChild(a);li.appendChild(meta);list.appendChild(li);
                 });
               }catch(error){list.textContent="加载失败，请刷新重试";}

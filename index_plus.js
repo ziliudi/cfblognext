@@ -667,7 +667,7 @@ async function renderBlog(url){
   let articles=[],
       pageNo=1,
       archiveYear=url.searchParams.get("year")||"";
-  if(archiveYear && /^\\d{4}$/.test(archiveYear)){
+  if(archiveYear && /^\d{4}$/.test(archiveYear)){
     articles=articles_all.filter(a=>String(a.createDate||"").startsWith(archiveYear));
     pageNo=url.searchParams.get("p")||1;
   }
@@ -706,11 +706,11 @@ async function renderBlog(url){
   }
   // console.log(url_prefix)
   //组装各种参数
-  let newer=[{title:"上一页",url:url_prefix+"/page/"+(pageNo-1)}];
+  let newer=[{title:"上一页",url:archiveYear?"/?year="+encodeURIComponent(archiveYear)+"&p="+(pageNo-1):url_prefix+"/page/"+(pageNo-1)}];
   if(1==pageNo){
     newer=[];
   }
-  let older=[{title:"下一页",url:url_prefix+"/page/"+(pageNo+1)}];
+  let older=[{title:"下一页",url:archiveYear?"/?year="+encodeURIComponent(archiveYear)+"&p="+(pageNo+1):url_prefix+"/page/"+(pageNo+1)}];
   if(pageNo*OPT.pageSize>=articles.length){
     older=[];
   }
@@ -736,7 +736,7 @@ async function renderBlog(url){
   const yearMap={};
   for(const item of articles_all){
     const year=String(item.createDate||"").slice(0,4);
-    if(/^\\d{4}$/.test(year)) yearMap[year]=(yearMap[year]||0)+1;
+    if(/^\d{4}$/.test(year)) yearMap[year]=(yearMap[year]||0)+1;
   }
   cfg.archiveList=Object.keys(yearMap).sort((a,b)=>b.localeCompare(a)).map(year=>({year,count:yearMap[year]}));
   const categorySet=new Set(),tagSet=new Set();
@@ -746,7 +746,12 @@ async function renderBlog(url){
   }
   cfg.categoryItems=Array.from(categorySet).map(name=>({name,url:"/category/"+encodeURIComponent(name)}));
   cfg.tagItems=Array.from(tagSet).map(name=>({name,url:"/tags/"+encodeURIComponent(name)}));
-  cfg.linkItems=(Array.isArray(links)?links:[]).map(item=>typeof item==="string"?({name:item,url:item}):({name:item.name||item.title||item.text||"",url:item.url||item.link||"#"})).filter(item=>item.name&&item.url);
+  cfg.linkItems=(Array.isArray(links)?links:[]).map(item=>{
+    const name=typeof item==="string"?item:(item.name||item.title||item.text||"");
+    const target=typeof item==="string"?item:(item.url||item.link||"");
+    const safeTarget=String(target).startsWith("https://") || String(target).startsWith("http://") || (String(target).startsWith("/") && !String(target).startsWith("//"));
+    return name && safeTarget ? {name:String(name),url:String(target)} : null;
+  }).filter(Boolean);
   cfg.blogArticleCount=articles_all.length;
   cfg.blogWordCount=(await getBlogWordCount(articles_all)).toLocaleString("zh-CN");
   cfg.blogYearCount=Object.keys(yearMap).length;
@@ -1471,7 +1476,7 @@ async function getBlogWordCount(articles){
     for(const article of batch){
       if(!article) continue;
       const textContent=String(article.contentMD||article.contentHtml||"").replace(/<[^>]*>/g," ").replace(/&[a-z#0-9]+;/gi," ");
-      const cjk=(textContent.match(/[\\u3400-\\u9fff]/g)||[]).length;
+      const cjk=(textContent.match(/[\u3400-\u9fff]/g)||[]).length;
       const latin=(textContent.match(/[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*/g)||[]).length;
       total+=cjk+latin;
     }

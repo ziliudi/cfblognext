@@ -773,6 +773,44 @@ async function renderBlog(url){
   })
 }
 
+// 将旧版本文章的 Markdown 正文转换为可读 HTML；文本先转义，避免把 Markdown 当作任意 HTML 执行。
+function escapeArticleHtml(value){
+  return String(value==null?"":value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+}
+function legacyMarkdownToHtml(markdown){
+  const source=String(markdown||"").replace(/\r\n?/g,"\n");
+  if(!source.trim()) return "";
+  const lines=source.split("\n"),out=[];
+  let paragraph=[],listType="",inCode=false,code=[];
+  const inline=value=>escapeArticleHtml(value)
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+    .replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>")
+    .replace(/\*([^*]+)\*/g,"<em>$1</em>")
+    .replace(/`([^`]+)`/g,"<code>$1</code>");
+  const flushParagraph=()=>{if(paragraph.length){out.push("<p>"+paragraph.map(inline).join("<br>")+"</p>");paragraph=[];}};
+  const flushList=()=>{if(listType){out.push("</"+listType+">");listType="";}};
+  for(const line of lines){
+    if(/^\s*```/.test(line)){
+      flushParagraph();flushList();
+      if(inCode){out.push("<pre><code>"+escapeArticleHtml(code.join("\n"))+"</code></pre>");code=[];inCode=false;}
+      else inCode=true;
+      continue;
+    }
+    if(inCode){code.push(line);continue;}
+    if(!line.trim()){flushParagraph();flushList();continue;}
+    const heading=line.match(/^(#{1,6})\s+(.+)$/);
+    if(heading){flushParagraph();flushList();const level=heading[1].length;out.push("<h"+level+">"+inline(heading[2])+"</h"+level+">");continue;}
+    const quote=line.match(/^>\s?(.*)$/);
+    if(quote){flushParagraph();flushList();out.push("<blockquote>"+inline(quote[1])+"</blockquote>");continue;}
+    const item=line.match(/^\s*([-*+] |\d+\. )(.*)$/);
+    if(item){flushParagraph();const type=/^\s*\d+\./.test(line)?"ol":"ul";if(listType!==type){flushList();out.push("<"+type+">");listType=type;}out.push("<li>"+inline(item[2])+"</li>");continue;}
+    flushList();paragraph.push(line);
+  }
+  if(inCode) out.push("<pre><code>"+escapeArticleHtml(code.join("\n"))+"</code></pre>");
+  flushParagraph();flushList();
+  return out.join("\n");
+}
+
 // 极简博客文章详情页：与首页共用品牌、搜索入口和右侧抽屉导航。
 function minimalArticleTemplate(){
   return `<!doctype html>
@@ -855,11 +893,23 @@ async function handle_article(id){
   const article=articles_sibling[1];
   article.title=String(article.title||"").replace(nullToEmpty(OPT.top_flag),"").replace(nullToEmpty(OPT.hidden_flag),"");
   article.createDate10=String(article.createDate||"").slice(0,10);
+  // 新版文章优先使用富文本 HTML；旧文章通常只有 contentMD，需转换后展示完整正文，
+  // 不能退回 contentText，因为它只是首页摘要。
   const rawContent=String(article.contentHtml||"");
-  if(!rawContent && article.contentText) article.contentHtml=String(article.contentText).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>");
+  if(rawContent.trim()){
+    article.contentHtml=rawContent;
+  }else{
+    article.contentHtml=legacyMarkdownToHtml(article.contentMD||article.contentText||"");
+  }
   article.contentLength=String(article.contentText||article.contentMD||"").replace(/\s/g,"").length;
   article.category=Array.isArray(article.category)?article.category:(article.category?[article.category]:[]);
   article.tags=Array.isArray(article.tags)?article.tags:(article.tags?[article.tags]:[]);
+  for(const sibling of [articles_sibling[0],articles_sibling[2]]){
+    if(sibling){
+      sibling.title=String(sibling.title||"");
+      sibling.url="/article/"+sibling.id+"/"+(sibling.link||"")+".html";
+    }
+  }
   const title=article.title+" - "+OPT.siteName;
   const allArticles=await getArticlesList(), yearMap={};
   for(const item of allArticles){const year=String(item.createDate||"").slice(0,4);if(/^\d{4}$/.test(year))yearMap[year]=(yearMap[year]||0)+1;}

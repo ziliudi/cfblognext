@@ -773,6 +773,65 @@ async function renderBlog(url){
   })
 }
 
+// 极简博客文章详情页：与首页共用品牌、搜索入口和右侧抽屉导航。
+function minimalArticleTemplate(){
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="{{articleSingle.title}}">
+<meta name="keywords" content="{{keyWords}}">
+<title>{{title}}</title>
+<style>
+:root{--bg:#fff;--fg:#242424;--muted:#858585;--line:#ececec;--soft:#f7f7f7;--width:760px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.85 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}a:hover{color:#777}.site{width:min(var(--width),calc(100% - 44px));margin:0 auto}
+.topbar{height:88px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}.brand{font-size:25px;font-weight:700;letter-spacing:-.7px}.brand small{display:block;font-size:10px;letter-spacing:2px;color:var(--muted);font-weight:500;line-height:1.2}
+.menu-button{width:42px;height:42px;border:1px solid var(--line);background:#fff;border-radius:50%;display:grid;place-content:center;gap:5px;cursor:pointer}.menu-button span{display:block;width:16px;height:1.5px;background:#333}
+.article-head{padding:54px 0 30px;border-bottom:1px solid var(--line)}.back{font-size:12px;color:#888;letter-spacing:1px}.article-head h1{font-size:clamp(27px,5vw,36px);line-height:1.45;letter-spacing:-.7px;margin:18px 0 14px;font-weight:700}.meta{font-size:12px;color:#999;display:flex;gap:13px;flex-wrap:wrap}.taxonomies{display:flex;gap:8px;flex-wrap:wrap;margin-top:17px}.taxonomies a{font-size:12px;color:#777;background:var(--soft);padding:3px 10px;border-radius:2px}
+.article-body{padding:35px 0 48px;font-size:16px;line-height:2;color:#333;overflow-wrap:anywhere}.article-body img{max-width:100%;height:auto;display:block;margin:24px auto}.article-body video,.article-body iframe{max-width:100%}.article-body h1,.article-body h2,.article-body h3,.article-body h4{line-height:1.5;margin:1.8em 0 .7em;color:#222}.article-body p{margin:0 0 1.35em}.article-body a{color:#555;text-decoration:underline;text-underline-offset:3px}.article-body blockquote{margin:1.5em 0;padding:3px 18px;border-left:3px solid #ddd;color:#777;background:#fafafa}.article-body pre{overflow:auto;padding:17px;background:#f6f6f6;border-radius:3px;font-size:13px;line-height:1.7}.article-body code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#f5f5f5;padding:2px 5px;border-radius:3px}.article-body pre code{padding:0;background:none}.article-body table{border-collapse:collapse;display:block;overflow:auto;max-width:100%}.article-body th,.article-body td{border:1px solid #e5e5e5;padding:7px 12px}.article-body hr{border:0;border-top:1px solid var(--line);margin:2em 0}.article-body ul,.article-body ol{padding-left:1.7em}
+.article-foot{border-top:1px solid var(--line);padding:24px 0 35px}.post-nav{display:grid;grid-template-columns:1fr 1fr;gap:18px}.post-nav a{padding:15px;border:1px solid var(--line);min-width:0}.post-nav small{display:block;color:#999;font-size:11px;letter-spacing:1px}.post-nav span{display:block;margin-top:5px;font-size:14px;overflow-wrap:anywhere}.post-nav .next{text-align:right}
+footer{padding:25px 0 42px;border-top:1px solid var(--line);color:#999;font-size:12px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}.footer-copy a{text-decoration:underline;text-underline-offset:3px}
+.drawer-mask{position:fixed;inset:0;background:rgba(0,0,0,.28);opacity:0;visibility:hidden;transition:.25s;z-index:9}.drawer{position:fixed;z-index:10;right:0;top:0;height:100%;width:min(360px,88vw);background:#fff;padding:26px 28px;overflow:auto;transform:translateX(102%);transition:transform .28s ease;box-shadow:-10px 0 35px rgba(0,0,0,.05)}.drawer.open{transform:translateX(0)}.drawer-mask.open{opacity:1;visibility:visible}.drawer-head{display:flex;justify-content:space-between;align-items:center;padding-bottom:20px;border-bottom:1px solid var(--line);font-weight:650}.drawer-close{border:0;background:none;font-size:25px;cursor:pointer}.drawer-section{padding:18px 0;border-bottom:1px solid var(--line)}.drawer-section h3{font-size:11px;color:#999;letter-spacing:1.5px;font-weight:500;margin:0 0 10px}.drawer-section a{display:inline-block;margin:4px 12px 4px 0;font-size:13px}.drawer-search{display:flex;border-bottom:1px solid #ddd;padding:7px 0}.drawer-search input{border:0;outline:0;min-width:0;flex:1;font:inherit;font-size:13px}.drawer-search button{border:0;background:none;cursor:pointer;color:#777}
+@media(max-width:600px){.topbar{height:76px}.article-head{padding:38px 0 24px}.article-body{font-size:15px;padding-top:27px}.post-nav{grid-template-columns:1fr}.post-nav .next{text-align:left}}
+</style>
+</head>
+<body>
+<div class="site">
+<header class="topbar"><a class="brand" href="/">{{OPT.siteName}}<small>PERSONAL BLOG</small></a><button class="menu-button" id="menuOpen" aria-label="打开导航菜单" aria-expanded="false"><span></span><span></span><span></span></button></header>
+<main>
+<header class="article-head"><a class="back" href="/">← 返回首页</a><h1>{{articleSingle.title}}</h1><div class="meta"><span>{{articleSingle.createDate10}}</span><span>{{articleSingle.contentLength}} 字</span></div>
+<div class="taxonomies">{{#articleSingle.category}}<a href="/category/{{.}}">{{.}}</a>{{/articleSingle.category}}{{#articleSingle.tags}}<a href="/tags/{{.}}"># {{.}}</a>{{/articleSingle.tags}}</div></header>
+<article class="article-body">{{{articleSingle.contentHtml}}}</article>
+<section class="article-foot"><nav class="post-nav">
+{{#articleOlder}}<a href="{{url}}"><small>上一篇</small><span>{{title}}</span></a>{{/articleOlder}}
+{{#articleNewer}}<a class="next" href="{{url}}"><small>下一篇</small><span>{{title}}</span></a>{{/articleNewer}}
+</nav></section>
+</main>
+<footer><span>© {{currentYear}} {{OPT.siteName}}</span><span class="footer-copy">Powered by Cloudflare Workers</span></footer>
+</div>
+<div class="drawer-mask" id="drawerMask"></div><aside class="drawer" id="drawer" aria-hidden="true">
+<div class="drawer-head"><span>导航</span><button class="drawer-close" id="menuClose" aria-label="关闭导航菜单">×</button></div>
+<form class="drawer-section drawer-search" action="/search.xml" method="get" onsubmit="return false"><input id="articleSearch" type="search" placeholder="搜索文章…" aria-label="搜索文章"><button id="articleSearchButton" type="button">搜索</button></form><div id="articleSearchResults" class="drawer-section" hidden></div>
+<section class="drawer-section"><h3>博客存档</h3>{{#archiveList}}<a href="/?year={{year}}">{{year}} ({{count}})</a>{{/archiveList}}</section>
+<section class="drawer-section"><h3>分类</h3>{{#categoryItems}}<a href="{{url}}">{{name}}</a>{{/categoryItems}}</section>
+<section class="drawer-section"><h3>标签</h3>{{#tagItems}}<a href="{{url}}"># {{name}}</a>{{/tagItems}}</section>
+<section class="drawer-section"><h3>友情链接</h3>{{#linkItems}}<a href="{{url}}" target="_blank" rel="noopener noreferrer">{{name}}</a>{{/linkItems}}</section>
+</aside>
+<script>
+(function(){
+ const drawer=document.getElementById('drawer'),mask=document.getElementById('drawerMask'),open=document.getElementById('menuOpen');
+ function toggle(show){drawer.classList.toggle('open',show);mask.classList.toggle('open',show);drawer.setAttribute('aria-hidden',String(!show));open.setAttribute('aria-expanded',String(show));}
+ open.addEventListener('click',()=>toggle(true));document.getElementById('menuClose').addEventListener('click',()=>toggle(false));mask.addEventListener('click',()=>toggle(false));document.addEventListener('keydown',e=>{if(e.key==='Escape')toggle(false);});
+ const input=document.getElementById('articleSearch'),button=document.getElementById('articleSearchButton'),results=document.getElementById('articleSearchResults');let data;
+ button.addEventListener('click',async()=>{const q=input.value.trim().toLowerCase();if(!q)return;results.hidden=false;results.textContent='搜索中…';try{if(!data){const response=await fetch('/search.xml');if(!response.ok)throw new Error('search');const xml=new DOMParser().parseFromString(await response.text(),'text/xml');data=Array.from(xml.querySelectorAll('entry,blog,item')).map(node=>({title:node.querySelector('title')?.textContent||'',url:node.querySelector('url,link')?.textContent||'',content:node.textContent||''}));}const found=data.filter(item=>(item.title+' '+item.content).toLowerCase().includes(q)).slice(0,12);results.textContent='';const heading=document.createElement('h3');heading.textContent='搜索结果：'+found.length+' 条';results.appendChild(heading);found.forEach(item=>{if(!item.url.startsWith('/')&&!item.url.startsWith('http'))return;const a=document.createElement('a');a.href=item.url;a.textContent=item.title;results.appendChild(a);});if(!found.length)results.append('没有找到相关文章。');}catch(e){results.textContent='搜索暂不可用，请稍后再试。';data=null;}});
+ input.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();button.click();}});
+})();
+</script>
+</body></html>`;
+}
+
 //渲染前端博客的文章内容页
 async function handle_article(id){
   //禁止通过猜测文章 ID 直接访问草稿和未到发布时间的定时文章。
@@ -787,51 +846,48 @@ async function handle_article(id){
     }
   }
 
-  //获取内容页模板源码
-  let theme_html=await getThemeHtml("article"),
-      //KV中读取导航栏、分类目录、标签、链接、近期文章等配置信息
-      menus=await getWidgetMenu(),
-      categories=await getWidgetCategory(),
-      tags=await getWidgetTags(),
-      links=await getWidgetLink(),
-      articles_recently=await getRecentlyArticles();
-
-  //获取上篇、本篇、下篇文章
+  const menus=await getWidgetMenu(), categories=await getWidgetCategory(),
+        tags=await getWidgetTags(), links=await getWidgetLink(),
+        articles_recently=await getRecentlyArticles();
   let articles_sibling=await getSiblingArticle(id);
-  
-  //处理文章属性（年月日、url等）
-  processArticleProp(articles_sibling);
-  
-  //获取本篇文章
-  let article=articles_sibling[1];
-
-  //组装文章详情页各参数
-  let title=article.title.replace(nullToEmpty(OPT.top_flag),'').replace(nullToEmpty(OPT.hidden_flag),'')+" - "+OPT.siteName, 
-      keyWord=article.tags.concat(article.category).join(","),
-      cfg={};
-  cfg.widgetMenuList=menus,//导航
-  cfg.widgetCategoryList=categories,//分类目录
-  cfg.widgetTagsList=tags,//标签
-  cfg.widgetLinkList=links,//链接
-  cfg.widgetRecentlyList=articles_recently,//近期文章
-  cfg.articleOlder=articles_sibling[0]?[articles_sibling[0]]:[],//上篇文章
-  cfg.articleSingle=article,//本篇文章
-  cfg.articleNewer=articles_sibling[2]?[articles_sibling[2]]:[],//下篇文章
-  cfg.title=title,//网页title
-  cfg.keyWords=keyWord;//SEO关键字
-  
-  //使用mustache.js渲染页面（参数替换）
-  cfg.OPT=OPT
-  
-  let html = Mustache.render(theme_html,cfg)
-
-  //以html格式返回
-  return new Response(html,{
-    headers:{
-      "content-type":"text/html;charset=UTF-8"
-    },
-    status:200
-  })
+  if(!articles_sibling || !articles_sibling[1]) articles_sibling=[undefined,requestedArticle,undefined];
+  processArticleProp(articles_sibling.filter(Boolean));
+  const article=articles_sibling[1];
+  article.title=String(article.title||"").replace(nullToEmpty(OPT.top_flag),"").replace(nullToEmpty(OPT.hidden_flag),"");
+  article.createDate10=String(article.createDate||"").slice(0,10);
+  const rawContent=String(article.contentHtml||"");
+  if(!rawContent && article.contentText) article.contentHtml=String(article.contentText).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>");
+  article.contentLength=String(article.contentText||article.contentMD||"").replace(/\s/g,"").length;
+  article.category=Array.isArray(article.category)?article.category:(article.category?[article.category]:[]);
+  article.tags=Array.isArray(article.tags)?article.tags:(article.tags?[article.tags]:[]);
+  const title=article.title+" - "+OPT.siteName;
+  const allArticles=await getArticlesList(), yearMap={};
+  for(const item of allArticles){const year=String(item.createDate||"").slice(0,4);if(/^\d{4}$/.test(year))yearMap[year]=(yearMap[year]||0)+1;}
+  const categorySet=new Set(),tagSet=new Set();
+  for(const item of allArticles){
+    (Array.isArray(item.category)?item.category:[item.category]).filter(Boolean).forEach(v=>categorySet.add(String(v)));
+    (Array.isArray(item.tags)?item.tags:[item.tags]).filter(Boolean).forEach(v=>tagSet.add(String(v)));
+  }
+  const linkItems=(Array.isArray(links)?links:[]).map(item=>{
+    const name=typeof item==="string"?item:(item.name||item.title||item.text||"");
+    const target=typeof item==="string"?item:(item.url||item.link||"");
+    const safe=/^https?:\/\//i.test(String(target)) || (String(target).startsWith("/")&&!String(target).startsWith("//"));
+    return name&&safe?{name:String(name),url:String(target)}:null;
+  }).filter(Boolean);
+  const cfg={
+    widgetMenuList:menus,widgetCategoryList:categories,widgetTagsList:tags,widgetLinkList:links,
+    widgetRecentlyList:articles_recently,
+    articleOlder:articles_sibling[0]?[articles_sibling[0]]:[],
+    articleSingle:article,
+    articleNewer:articles_sibling[2]?[articles_sibling[2]]:[],
+    title,keyWords:[...article.tags,...article.category].join(","),
+    archiveList:Object.keys(yearMap).sort((a,b)=>b.localeCompare(a)).map(year=>({year,count:yearMap[year]})),
+    categoryItems:Array.from(categorySet).map(name=>({name,url:"/category/"+encodeURIComponent(name)})),
+    tagItems:Array.from(tagSet).map(name=>({name,url:"/tags/"+encodeURIComponent(name)})),
+    linkItems,currentYear:new Date().getFullYear(),OPT
+  };
+  const html=Mustache.render(minimalArticleTemplate(),cfg);
+  return new Response(html,{headers:{"content-type":"text/html;charset=UTF-8"},status:200});
 }
 
 //后台请求处理

@@ -364,12 +364,38 @@ async function handlerRequest(event){
     }));
   }
 
-  // CSRF 基础防护：拒绝跨站写请求。兼容不发送 Origin 的旧客户端，
-  // 但浏览器明确标记为 cross-site 的请求一律拒绝。
-  if(paths[0]==="admin" && !["GET","HEAD","OPTIONS"].includes(request.method.toUpperCase())){
+  // 后台路由采用明确的 HTTP 方法白名单，避免通过 GET 链接/图片触发写操作。
+  if(paths[0]==="admin"){
+    const method=request.method.toUpperCase();
+    const action=paths[1]||"";
+    const readOnly=["","list","getList","edit","getDrafts","getScheduled","export","search.xml","sitemap.xml"];
+    const writeOnly=["publish","saveConfig","import","saveAddNew","delete","saveEdit"];
+    if((readOnly.includes(action) && !["GET","HEAD"].includes(method)) ||
+       (writeOnly.includes(action) && method!=="POST") ||
+       (!readOnly.includes(action) && !writeOnly.includes(action))){
+      return withSecurityHeaders(new Response("Method Not Allowed",{
+        headers:{"Content-Type":"text/plain;charset=UTF-8","Allow":readOnly.includes(action)?"GET, HEAD":writeOnly.includes(action)?"POST":"GET"},
+        status:405
+      }));
+    }
+    // 拒绝明显超出正常范围的后台请求体，避免意外的大请求消耗 Worker 内存。
+    const contentLength=Number(request.headers.get("Content-Length")||0);
+    if(method==="POST" && contentLength>2200000){
+      return withSecurityHeaders(new Response("Payload Too Large",{
+        headers:{"Content-Type":"text/plain;charset=UTF-8"},
+        status:413
+      }));
+    }
+  }
+
+  // 后台写请求必须来自本站 Origin，或由浏览器明确标记为 same-origin。
+  // 不接受来源信息缺失的可疑请求；自动化客户端可显式设置本站 Origin。
+  if(paths[0]==="admin" && request.method.toUpperCase()==="POST"){
     const origin=request.headers.get("Origin");
     const fetchSite=request.headers.get("Sec-Fetch-Site");
-    if((origin && origin!==url.origin) || fetchSite==="cross-site"){
+    if((origin && origin!==url.origin) ||
+       fetchSite==="cross-site" ||
+       (!origin && fetchSite!=="same-origin")){
       return withSecurityHeaders(new Response("Forbidden",{
         headers:{"Content-Type":"text/plain;charset=UTF-8"},
         status:403
@@ -458,6 +484,21 @@ function escapeXml(value){
     .replace(/'/g,"&apos;");
 }
 
+// sitemap 字段使用白名单，避免 KV 中异常值注入 XML 标签或非法元数据。
+function safeSitemapDate(value){
+  const date=String(value||"").slice(0,10);
+  return /^\\d{4}-\\d{2}-\\d{2}$/.test(date) && !Number.isNaN(Date.parse(date)) ? date : new Date().toISOString().slice(0,10);
+}
+function safeSitemapChangefreq(value){
+  const allowed=["always","hourly","daily","weekly","monthly","yearly","never"];
+  const normalized=String(value||"daily").toLowerCase();
+  return allowed.includes(normalized)?normalized:"daily";
+}
+function safeSitemapPriority(value){
+  const number=Number(value===undefined?"0.5":value);
+  return Number.isFinite(number) && number>=0 && number<=1 ? number.toFixed(1) : "0.5";
+}
+
 /**------【③.分而治之：各种请求分开处理】-----**/
 
 //访问: favicon.ico
@@ -519,9 +560,9 @@ async function handle_sitemap(request){
     for(var i=0;i<articles_all.length;i++){
       xml+="\n\t<url>",
       xml+="\n\t\t<loc>"+escapeXml("https://"+OPT.siteDomain+"/article/"+articles_all[i].id+"/"+articles_all[i].link+".html")+"</loc>",
-      xml+="\n\t\t<lastmod>"+articles_all[i].createDate.substr(0,10)+"</lastmod>",
-      xml+="\n\t\t<changefreq>"+(void 0===articles_all[i].changefreq?"daily":articles_all[i].changefreq)+"</changefreq>",
-      xml+="\n\t\t<priority>"+(void 0===articles_all[i].priority?"0.5":articles_all[i].priority)+"</priority>",
+      xml+="\n\t\t<lastmod>"+escapeXml(safeSitemapDate(articles_all[i].createDate))+"</lastmod>",
+      xml+="\n\t\t<changefreq>"+safeSitemapChangefreq(articles_all[i].changefreq)+"</changefreq>",
+      xml+="\n\t\t<priority>"+safeSitemapPriority(articles_all[i].priority)+"</priority>",
       xml+="\n\t</url>";
     }
     xml+="\n</urlset>"
@@ -943,9 +984,9 @@ async function handle_admin(request){
     for(var i=0;i<articles_all.length;i++){
       xml+="\n\t<url>",
       xml+="\n\t\t<loc>"+escapeXml("https://"+OPT.siteDomain+"/article/"+articles_all[i].id+"/"+articles_all[i].link+".html")+"</loc>",
-      xml+="\n\t\t<lastmod>"+articles_all[i].createDate.substr(0,10)+"</lastmod>",
-      xml+="\n\t\t<changefreq>"+(void 0===articles_all[i].changefreq?"daily":articles_all[i].changefreq)+"</changefreq>",
-      xml+="\n\t\t<priority>"+(void 0===articles_all[i].priority?"0.5":articles_all[i].priority)+"</priority>",
+      xml+="\n\t\t<lastmod>"+escapeXml(safeSitemapDate(articles_all[i].createDate))+"</lastmod>",
+      xml+="\n\t\t<changefreq>"+safeSitemapChangefreq(articles_all[i].changefreq)+"</changefreq>",
+      xml+="\n\t\t<priority>"+safeSitemapPriority(articles_all[i].priority)+"</priority>",
       xml+="\n\t</url>";
     }
     xml+="\n</urlset>"

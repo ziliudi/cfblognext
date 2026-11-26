@@ -688,7 +688,8 @@ async function renderBlog(url){
     articles = articles_all.filter(a => a[paths[0]].includes(category_tag))
     break;
   }
-  pageNo = parseInt(pageNo)
+  pageNo = parseInt(pageNo,10)
+  if(!Number.isFinite(pageNo) || pageNo<1) pageNo=1;
   // console.log(pageNo)
   // console.log(articles)
 

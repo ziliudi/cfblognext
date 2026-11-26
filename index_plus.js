@@ -280,11 +280,42 @@ Disallow: /admin`,//robots.txt设置
 
 /**------【②.猎杀时刻：请求处理入口】-----**/
 
+//定时发布：Cloudflare Worker 需在 Dashboard 配置 Cron Trigger（建议每分钟执行一次）。
+addEventListener("scheduled",event=>{
+  event.waitUntil(publishScheduledArticles());
+});
+
 //监听请求
 addEventListener("fetch",event=>{
   //处理请求
   event.respondWith(handlerRequest(event))
-})
+});
+
+//将到期的定时文章转为已发布，并刷新文章索引及 CDN 缓存。
+async function publishScheduledArticles(){
+  const all=await getAllArticlesList(), now=Date.now();
+  let changed=false;
+  for(const item of all){
+    if(item.status!=="scheduled") continue;
+    const due=Date.parse(String(item.scheduledAt||"").replace(" ","T"));
+    if(!Number.isFinite(due)||due>now) continue;
+    const article=await getArticle(item.id);
+    if(!article) continue;
+    article.status="published";
+    article.publishedAt=new Date(now).toISOString();
+    await saveArticle(item.id,JSON.stringify(article));
+    item.status="published";
+    item.publishedAt=article.publishedAt;
+    changed=true;
+  }
+  if(changed){
+    await saveArticlesList(JSON.stringify(all));
+    const tags=[...new Set(all.filter(a=>a.status==="published"&&!a.hidden).flatMap(a=>Array.isArray(a.tags)?a.tags:[]).filter(Boolean))];
+    await saveWidgetTags(JSON.stringify(tags));
+    await purge();
+  }
+  return changed;
+}
 
 // 处理请求
 async function handlerRequest(event){
@@ -847,6 +878,18 @@ async function handle_admin(request){
     }
   }
   
+  //草稿箱：仅后台可见，不进入公开文章列表
+  if("getDrafts"==paths[1]){
+    let all=await getAllArticlesList();
+    json=JSON.stringify(all.filter(a=>a.status==="draft"));
+  }
+
+  //定时发布任务状态与待发布列表
+  if("getScheduled"==paths[1]){
+    let all=await getAllArticlesList();
+    json=JSON.stringify(all.filter(a=>a.status==="scheduled"));
+  }
+
   //新建文章
   if("saveAddNew"==paths[1]){
     const ret=await parseReq(request);
@@ -864,6 +907,8 @@ async function handle_admin(request){
         top_timestamp=ret.top_timestamp*1,//置顶时间戳，不置顶时为0
         modify_timestamp=new Date().getTime()+8*60*60*1000,//修改时间戳
         hidden=ret.hidden*1,//是否隐藏
+        status=["draft","scheduled"].includes(ret.status)?ret.status:"published",
+        scheduledAt=ret.scheduledAt||"",
         id="";//文章id
     
     //校验参数完整性
@@ -891,6 +936,8 @@ async function handle_admin(request){
         top_timestamp:top_timestamp,
         modify_timestamp:modify_timestamp,
         hidden:hidden,
+        status:status,
+        scheduledAt:scheduledAt,
         changefreq:changefreq
       };
       
@@ -911,6 +958,8 @@ async function handle_admin(request){
         top_timestamp:top_timestamp,
         modify_timestamp:modify_timestamp,
         hidden:hidden,
+        status:status,
+        scheduledAt:scheduledAt,
         changefreq:changefreq
       },
       articles_all_old=await getAllArticlesList(),//读取文章列表
@@ -965,6 +1014,8 @@ async function handle_admin(request){
         top_timestamp=ret.top_timestamp*1,//置顶则设置时间戳,不置顶时为0
         modify_timestamp=new Date().getTime()+8*60*60*1000,//修改时间戳
         hidden=ret.hidden*1,//是否隐藏
+        status=["draft","scheduled"].includes(ret.status)?ret.status:"published",
+        scheduledAt=ret.scheduledAt||"",
         id=ret.id;//文章id
         
     //校验参数完整性
@@ -991,6 +1042,8 @@ async function handle_admin(request){
         top_timestamp:top_timestamp,
         modify_timestamp:modify_timestamp,
         hidden:hidden,
+        status:status,
+        scheduledAt:scheduledAt,
         changefreq:changefreq
       };
       
@@ -1011,6 +1064,8 @@ async function handle_admin(request){
         top_timestamp:top_timestamp,
         modify_timestamp:modify_timestamp,
         hidden:hidden,
+        status:status,
+        scheduledAt:scheduledAt,
         changefreq:changefreq
       },
       articles_all=await getAllArticlesList();//读取文章列表
@@ -1097,13 +1152,17 @@ function parseBasicAuth(request){
 
 //获取所有【公开】文章：仅前台使用
 async function getArticlesList(){
-  let articles_all = await getAllArticlesList();
-  
-  for(var i=0;i<articles_all.length;i++)
-    if(articles_all[i].hidden){
-        articles_all.splice(i,1);
+  let articles_all = await getAllArticlesList(),
+      now=Date.now();
+  //旧文章没有 status 字段，默认视为已发布；草稿和未到时间的定时文章不公开。
+  return articles_all.filter(article=>{
+    if(article.status==="draft") return false;
+    if(article.status==="scheduled"){
+      const publishAt=Date.parse(String(article.scheduledAt||"").replace(" ","T"));
+      if(!Number.isFinite(publishAt)||publishAt>now) return false;
     }
-  return articles_all;
+    return !article.hidden;
+  });
 }
 
 //文章排序：先按id倒排，再按置顶时间倒排
@@ -1207,6 +1266,8 @@ async function admin_nextPage(pageNo,pageSize=OPT.pageSize){
       if(articles_all[i].hidden && !articles_all[i].title.startsWith(OPT.hidden_flag)){
         articles_all[i].title = OPT.hidden_flag + articles_all[i].title
       }
+      if(articles_all[i].status==="draft") articles_all[i].title="[草稿] "+articles_all[i].title;
+      if(articles_all[i].status==="scheduled") articles_all[i].title="[定时] "+articles_all[i].title;
       articles.push(articles_all[i]);
     }
     //articles=sortArticle(articles);

@@ -18,7 +18,7 @@ const OPT = { //网站配置
   /*--前台参数--*/
   "siteDomain" : "域名",// 域名(不带https 也不带/)
   "siteName" : "CFBLOG-Plus",//博客名称
-  "siteDescription":"CFBLOG-Plus" ,//博客描述
+  "siteDescription":"记录日常生活、阅读与思考，也分享一些折腾技术的过程。希望这些文字能留下时间的痕迹。",//首页自我介绍与站点描述，可按个人情况修改
   "keyWords":"cloudflare,KV,workers,blog",//关键字
   "logo":"https://cdn.jsdelivr.net/gh/Arronlong/cfblog-plus@master/themes/JustNews/files/logo2.png",//JustNews主题的logo
 
@@ -51,7 +51,7 @@ const OPT = { //网站配置
   "otherCodeC":``,//
   "otherCodeD":``,//
   "otherCodeE":``,//
-  "copyRight" :`Powered by <a href="https://www.cloudflare.com">Cloudflare</a> & <a href="https://blog.arrontg.cf">CFBlog-Plus</a> & <a href="https://blog.gezhong.vip">CF-Blog </a>`,//自定义版权信息,建议保留大公无私的 Coudflare 和 作者 的链接
+  "copyRight" :`© ${new Date().getFullYear()} CFBlog-Plus · Powered by <a href="https://www.cloudflare.com/">Cloudflare</a>`,//自定义版权信息
   "robots":`User-agent: *
 Disallow: /admin`,//robots.txt设置
   

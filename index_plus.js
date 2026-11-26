@@ -666,6 +666,18 @@ async function renderBlog(url){
 
 //渲染前端博客的文章内容页
 async function handle_article(id){
+  //禁止通过猜测文章 ID 直接访问草稿和未到发布时间的定时文章。
+  const requestedArticle=await getArticle(id);
+  if(!requestedArticle || requestedArticle.status==="draft"){
+    return new Response(OPT.html404,{headers:{"content-type":"text/html;charset=UTF-8"},status:404});
+  }
+  if(requestedArticle.status==="scheduled"){
+    const publishAt=Date.parse(String(requestedArticle.scheduledAt||"").replace(" ","T"));
+    if(!Number.isFinite(publishAt) || publishAt>Date.now()){
+      return new Response(OPT.html404,{headers:{"content-type":"text/html;charset=UTF-8"},status:404});
+    }
+  }
+
   //获取内容页模板源码
   let theme_html=await getThemeHtml("article"),
       //KV中读取导航栏、分类目录、标签、链接、近期文章等配置信息
@@ -1248,12 +1260,18 @@ async function getThemeHtml(template_path){
   template_path=template_path.replace(".html","")
   let html = await (await fetch(OPT.themeURL+template_path+".html",{cf:{cacheTtl:600}})).text();
   
-  //对后台编辑页下手
-  if("admin/index|admin/editor".includes(template_path)){
-      html = html.replace("$('#WidgetCategory').val(JSON.stringify(categoryJson))",OPT.editor_page_scripts+"$('#WidgetCategory').val(JSON.stringify(categoryJson))")
+  //后台首页和文章编辑页都注入编辑器增强脚本。
+  if(template_path==="admin/index" || template_path==="admin/edit"){
+      const marker="$('#WidgetCategory').val(JSON.stringify(categoryJson))";
+      if(html.includes(marker)){
+        html=html.replace(marker,OPT.editor_page_scripts+marker);
+      }else if(template_path==="admin/edit"){
+        const fallbackScript="<script>$(function(){"+OPT.editor_page_scripts+"});</script>";
+        html=html.includes("</body>")?html.replace("</body>",fallbackScript+"</body>"):html+fallbackScript;
+      }
   }
   if("admin/index"===template_path){
-    html += `
+    const workflowDashboard = `
       <script>
       (function(){
         function mountWorkflowPanel(){
@@ -1290,6 +1308,7 @@ async function getThemeHtml(template_path){
         if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",mountWorkflowPanel); else mountWorkflowPanel();
       })();
       </script>`;
+    html=html.includes("</body>")?html.replace("</body>",workflowDashboard+"</body>"):html+workflowDashboard;
   }
   
   return html

@@ -38,3 +38,24 @@ CFBlog-Plus 是基于原始开源项目 `gdtool/cloudflare-workers-blog` 二次�
 ## 部署说明
 
 请以当前仓库中的 Worker 源码、Cloudflare Dashboard 配置和本文档为准。原项目作者提供的旧演示站、旧教程及旧更新日志链接已移除，避免访问失效域名。
+
+### 首次部署前必须修改的配置
+
+打开 `index_plus.js` 顶部的 `ACCOUNT` 配置区：
+
+- 将 `user` 改为自己的后台用户名。
+- 将 `password` 改为足够长的随机密码（建议至少 20 位）。
+- `third_token` 是可选的只读导出令牌；不需要外部导出时保持空字符串。
+
+**安全提示：** 仓库中的用户名和密码是强制修改占位值。若仍保留 `CHANGE_ME_` 占位内容，后台认证会拒绝登录，这是预期的安全行为。不要把真实密码或 Token 提交到公开仓库。
+
+同时确认 `OPT` 中的站点域名、主题地址，以及 Cloudflare Worker 的 KV 绑定名称与代码配置一致。升级已有博客前请先备份 KV 数据，不要删除或重新创建原有 Namespace。
+
+### 安全加固说明
+
+- 后台认证拒绝空凭据及仓库占位凭据。
+- 后台跨站写请求会进行 Origin / Fetch Metadata 检查。
+- 响应统一添加 `X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy` 和 `Permissions-Policy` 等安全响应头。
+- 文章编辑接口会校验文章 ID、字段长度、分类/标签数量，并要求定时发布时间有效且在未来。
+
+这些措施属于基础防护，不等同于完整渗透测试；部署后仍应验证主题兼容性和后台各项操作。

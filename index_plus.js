@@ -665,9 +665,14 @@ async function renderBlog(url){
    */
   let paths = url.pathname.trim("/").split("/")
   let articles=[],
-      pageNo=1
+      pageNo=1,
+      archiveYear=url.searchParams.get("year")||"";
+  if(archiveYear && /^\\d{4}$/.test(archiveYear)){
+    articles=articles_all.filter(a=>String(a.createDate||"").startsWith(archiveYear));
+    pageNo=url.searchParams.get("p")||1;
+  }
   //获取文章列表
-  switch(paths[0]||"page"){
+  if(!archiveYear) switch(paths[0]||"page"){
   case "page":
     articles = articles_all
     pageNo = paths[1]||1
@@ -726,7 +731,29 @@ async function renderBlog(url){
   cfg.pageOlder=older,//下翻页链接
   cfg.title=title,//网页title
   cfg.keyWords=keyWord;//SEO关键字
-  
+
+  // 首页侧栏资料、年度归档和全站统计。
+  const yearMap={};
+  for(const item of articles_all){
+    const year=String(item.createDate||"").slice(0,4);
+    if(/^\\d{4}$/.test(year)) yearMap[year]=(yearMap[year]||0)+1;
+  }
+  cfg.archiveList=Object.keys(yearMap).sort((a,b)=>b.localeCompare(a)).map(year=>({year,count:yearMap[year]}));
+  const categorySet=new Set(),tagSet=new Set();
+  for(const item of articles_all){
+    (Array.isArray(item.category)?item.category:[item.category]).filter(Boolean).forEach(v=>categorySet.add(String(v)));
+    (Array.isArray(item.tags)?item.tags:[item.tags]).filter(Boolean).forEach(v=>tagSet.add(String(v)));
+  }
+  cfg.categoryItems=Array.from(categorySet).map(name=>({name,url:"/category/"+encodeURIComponent(name)}));
+  cfg.tagItems=Array.from(tagSet).map(name=>({name,url:"/tags/"+encodeURIComponent(name)}));
+  cfg.linkItems=(Array.isArray(links)?links:[]).map(item=>typeof item==="string"?({name:item,url:item}):({name:item.name||item.title||item.text||"",url:item.url||item.link||"#"})).filter(item=>item.name&&item.url);
+  cfg.blogArticleCount=articles_all.length;
+  cfg.blogWordCount=(await getBlogWordCount(articles_all)).toLocaleString("zh-CN");
+  cfg.blogYearCount=Object.keys(yearMap).length;
+  cfg.currentYear=new Date().getFullYear();
+  cfg.pageNo=pageNo;
+  cfg.isArchive=!!archiveYear;
+
   //使用mustache.js进行页面渲染（参数替换）
   cfg.OPT=OPT
   
@@ -1339,9 +1366,123 @@ function processArticleProp(articles){
     }
 }
 
+// 极简博客首页：纯 HTML/CSS/原生 JS，不依赖额外前端框架。
+function minimalIndexTemplate(){
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="{{OPT.siteDescription}}">
+<meta name="keywords" content="{{keyWords}}">
+<title>{{title}}</title>
+<style>
+:root{--bg:#fff;--fg:#242424;--muted:#858585;--line:#ececec;--soft:#f7f7f7;--accent:#333;--width:760px}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.85 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}a:hover{color:#777}.site{width:min(var(--width),calc(100% - 44px));margin:0 auto}.topbar{height:88px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line)}
+.brand{font-size:25px;font-weight:700;letter-spacing:-.7px}.brand small{display:block;font-size:10px;letter-spacing:2px;color:var(--muted);font-weight:500;line-height:1.2}
+.menu-button{width:42px;height:42px;border:1px solid var(--line);background:#fff;border-radius:50%;display:grid;place-content:center;gap:5px;cursor:pointer}.menu-button span{display:block;width:16px;height:1.5px;background:#333}
+.intro{padding:48px 0 35px;border-bottom:1px solid var(--line)}.eyebrow{font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase}.intro p{font-size:15px;color:#666;max-width:590px;margin:12px 0 0;line-height:2}
+.search{display:flex;align-items:center;gap:10px;margin-top:24px;max-width:440px;border-bottom:1px solid #dcdcdc;padding:7px 0}.search input{border:0;outline:0;flex:1;min-width:0;font:inherit;font-size:14px;background:transparent}.search button{border:0;background:none;color:#777;cursor:pointer;font-size:13px}
+main{padding:12px 0 8px}.section-label{font-size:11px;letter-spacing:2px;color:var(--muted);margin:26px 0 8px}.post{padding:25px 0 27px;border-bottom:1px solid var(--line)}.post-meta{font-size:12px;color:#999;letter-spacing:.4px}.post h2{font-size:21px;line-height:1.5;font-weight:650;letter-spacing:-.3px;margin:7px 0 8px}.post-excerpt{color:#777;font-size:14px;line-height:1.9;margin:0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}.post-bottom{display:flex;align-items:center;gap:12px;margin-top:12px;font-size:12px;color:#999}.readmore{color:#555}
+.pagination{display:flex;justify-content:center;align-items:center;gap:20px;padding:34px 0 40px;font-size:13px}.pagination a{border:1px solid var(--line);padding:7px 15px;border-radius:3px}.pagination .current{color:#999}
+.stats{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:23px 0;display:flex;gap:45px;flex-wrap:wrap}.stat strong{font-size:21px;font-weight:600;display:block;line-height:1.4}.stat span{font-size:11px;letter-spacing:1px;color:var(--muted)}
+footer{padding:30px 0 42px;color:#999;font-size:12px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}.footer-copy a{text-decoration:underline;text-underline-offset:3px}
+.drawer-mask{position:fixed;inset:0;background:rgba(0,0,0,.28);opacity:0;visibility:hidden;transition:.25s;z-index:9}.drawer{position:fixed;z-index:10;right:0;top:0;height:100%;width:min(360px,88vw);background:#fff;padding:26px 28px;overflow:auto;transform:translateX(102%);transition:transform .28s ease;box-shadow:-8px 0 35px rgba(0,0,0,.06)}body.drawer-open .drawer{transform:translateX(0)}body.drawer-open .drawer-mask{opacity:1;visibility:visible}.drawer-head{display:flex;justify-content:space-between;align-items:center;padding-bottom:18px;border-bottom:1px solid var(--line);font-size:17px;font-weight:650}.drawer-close{border:0;background:none;font-size:25px;cursor:pointer;color:#777}.drawer-section{padding:20px 0 6px;border-bottom:1px solid var(--line)}.drawer-section h3{font-size:11px;color:#999;letter-spacing:1.5px;font-weight:500;margin:0 0 12px}.drawer-list{display:flex;flex-wrap:wrap;gap:8px 14px;font-size:13px;color:#555;padding-bottom:15px}.drawer-list a{display:inline-block}.drawer-list.archive{display:block}.drawer-list.archive a{display:flex;justify-content:space-between;padding:4px 0}
+.search-results{display:none;padding:15px 0 8px;border-bottom:1px solid var(--line)}.search-results.show{display:block}.search-results h3{font-size:12px;color:#888;font-weight:500}.search-results a{display:block;padding:8px 0;font-size:14px;border-top:1px solid #f1f1f1}.search-results small{display:block;color:#999;font-size:11px}
+.empty{padding:42px 0;color:#999;text-align:center;font-size:14px}
+@media(max-width:600px){.site{width:calc(100% - 36px)}.topbar{height:72px}.brand{font-size:22px}.intro{padding:35px 0 27px}.post{padding:21px 0}.post h2{font-size:19px}.stats{gap:25px}.stats .stat strong{font-size:19px}footer{display:block}footer span{display:block;margin-top:5px}}
+</style>
+</head>
+<body>
+<div class="site">
+<header class="topbar">
+<a class="brand" href="/">{{OPT.siteName}}<small>PERSONAL NOTES & WRITINGS</small></a>
+<button class="menu-button" id="menuOpen" aria-label="打开菜单" aria-expanded="false"><span></span><span></span><span></span></button>
+</header>
+<section class="intro">
+<div class="eyebrow">A LITTLE ABOUT ME</div>
+<p>{{OPT.siteDescription}}</p>
+<form class="search" id="siteSearch" role="search"><input id="searchInput" type="search" placeholder="搜索文章标题或内容…" autocomplete="off"><button type="submit">搜索 ↗</button></form>
+<div class="search-results" id="searchResults" aria-live="polite"></div>
+</section>
+<main>
+<div class="section-label">{{#isArchive}}ARCHIVE{{/isArchive}}{{^isArchive}}LATEST WRITINGS{{/isArchive}}</div>
+{{#articleList}}
+<article class="post">
+<div class="post-meta">{{createDate10}}　·　{{contentLength}} 字</div>
+<h2><a href="{{url}}">{{title}}</a></h2>
+<p class="post-excerpt">{{contentText}}</p>
+<div class="post-bottom"><span>{{#category}}{{.}}　{{/category}}</span><a class="readmore" href="{{url}}">继续阅读 →</a></div>
+</article>
+{{/articleList}}
+{{^articleList}}<div class="empty">这里还没有文章。</div>{{/articleList}}
+<nav class="pagination" aria-label="文章分页">
+{{#pageNewer}}<a href="{{url}}">← 上一页</a>{{/pageNewer}}
+<span class="current">第 {{pageNo}} 页</span>
+{{#pageOlder}}<a href="{{url}}">下一页 →</a>{{/pageOlder}}
+</nav>
+<section class="stats">
+<div class="stat"><strong>{{blogArticleCount}}</strong><span>篇文章</span></div>
+<div class="stat"><strong>{{blogWordCount}}</strong><span>累计字数</span></div>
+<div class="stat"><strong>{{blogYearCount}}</strong><span>记录年份</span></div>
+</section>
+</main>
+<footer><div class="footer-copy">{{{OPT.copyRight}}}</div><span>用文字记录生活 · © {{currentYear}}</span></footer>
+</div>
+<div class="drawer-mask" id="drawerMask"></div>
+<aside class="drawer" id="siteDrawer" aria-hidden="true">
+<div class="drawer-head"><span>探索博客</span><button class="drawer-close" id="menuClose" aria-label="关闭菜单">×</button></div>
+<section class="drawer-section"><h3>博客存档</h3><div class="drawer-list archive">{{#archiveList}}<a href="/?year={{year}}"><span>{{year}}</span><span>{{count}} 篇</span></a>{{/archiveList}}</div></section>
+<section class="drawer-section"><h3>分类</h3><div class="drawer-list">{{#categoryItems}}<a href="{{url}}">{{name}}</a>{{/categoryItems}}</div></section>
+<section class="drawer-section"><h3>标签</h3><div class="drawer-list">{{#tagItems}}<a href="{{url}}"># {{name}}</a>{{/tagItems}}</div></section>
+<section class="drawer-section"><h3>站点链接</h3><div class="drawer-list">{{#linkItems}}<a href="{{url}}" target="_blank" rel="noopener noreferrer">{{name}}</a>{{/linkItems}}</div></section>
+</aside>
+<script>
+(function(){
+ const body=document.body,open=document.getElementById('menuOpen'),close=document.getElementById('menuClose'),mask=document.getElementById('drawerMask'),drawer=document.getElementById('siteDrawer');
+ function setDrawer(value){body.classList.toggle('drawer-open',value);open.setAttribute('aria-expanded',String(value));drawer.setAttribute('aria-hidden',String(!value));}
+ open.addEventListener('click',()=>setDrawer(true));close.addEventListener('click',()=>setDrawer(false));mask.addEventListener('click',()=>setDrawer(false));
+ document.addEventListener('keydown',e=>{if(e.key==='Escape')setDrawer(false)});
+ const form=document.getElementById('siteSearch'),input=document.getElementById('searchInput'),results=document.getElementById('searchResults');
+ let searchData=null;
+ form.addEventListener('submit',async function(e){
+  e.preventDefault();const q=input.value.trim().toLowerCase();results.classList.add('show');results.innerHTML='';
+  if(!q){results.textContent='请输入搜索关键词';return;}
+  results.innerHTML='<h3>正在搜索…</h3>';
+  try{
+   if(!searchData){const response=await fetch('/search.xml',{credentials:'same-origin'});if(!response.ok)throw new Error('search unavailable');const xml=new DOMParser().parseFromString(await response.text(),'application/xml');searchData=Array.from(xml.querySelectorAll('blog')).map(node=>({title:node.querySelector('title')?.textContent||'',url:node.querySelector('url')?.textContent||'#',content:node.querySelector('content')?.textContent||'',time:node.querySelector('time')?.textContent||''}));}
+   const matches=searchData.filter(item=>(item.title+' '+item.content).toLowerCase().includes(q)).slice(0,20);
+   results.innerHTML='<h3>搜索结果：'+matches.length+' 条</h3>';
+   if(!matches.length){results.insertAdjacentHTML('beforeend','<p class="post-excerpt">没有找到相关文章。</p>');return;}
+   matches.forEach(item=>{const a=document.createElement('a'),small=document.createElement('small');a.href=item.url;a.textContent=item.title;small.textContent=item.time;a.appendChild(small);results.appendChild(a);});
+  }catch(err){results.textContent='搜索暂不可用，请稍后再试。';searchData=null;}
+ });
+})();
+</script>
+</body></html>`;
+}
+
+//按文章正文统计总字数：中文按字符计，英文按单词计。
+async function getBlogWordCount(articles){
+  let total=0;
+  for(let i=0;i<articles.length;i+=20){
+    const batch=await Promise.all(articles.slice(i,i+20).map(item=>getArticle(item.id)));
+    for(const article of batch){
+      if(!article) continue;
+      const textContent=String(article.contentMD||article.contentHtml||"").replace(/<[^>]*>/g," ").replace(/&[a-z#0-9]+;/gi," ");
+      const cjk=(textContent.match(/[\\u3400-\\u9fff]/g)||[]).length;
+      const latin=(textContent.match(/[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*/g)||[]).length;
+      total+=cjk+latin;
+    }
+  }
+  return total;
+}
+
 //获取前台模板源码, template_path:模板的相对路径
 async function getThemeHtml(template_path){
   template_path=template_path.replace(".html","")
+  if(template_path==="index") return minimalIndexTemplate();
   let html = await (await fetch(OPT.themeURL+template_path+".html",{cf:{cacheTtl:600}})).text();
   
   //后台首页和文章编辑页都注入编辑器增强脚本。

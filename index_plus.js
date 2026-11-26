@@ -1055,7 +1055,8 @@ async function handle_admin(request){
       && createDate.length>0
       && category.length>0
       && contentMD.length>0
-      && contentHtml.length>0){
+      && contentHtml.length>0
+      && (status!=="scheduled" || Number.isFinite(Date.parse(scheduledAt)))){
           
       contentText=contentHtml.replace(/<\/?[^>]*>/g,"").trim().substring(0,OPT.readMoreLength);//摘要
       //组装文章json

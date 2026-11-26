@@ -1065,28 +1065,33 @@ async function handle_admin(request){
   //保存编辑的文章
   if("saveEdit"==paths[1]){
     const ret=await parseReq(request);
-    let title=ret.title,//文章标题
-        img=ret.img,//插图
-        link=ret.link,//永久链接
-        createDate=ret.createDate.replace('T',' '),//发布日期
-        category=ret.category,//分类
-        tags=ret.tags,//标签
+    let title=String(ret.title||""),//文章标题
+        img=String(ret.img||""),//插图
+        link=String(ret.link||""),//永久链接
+        createDate=String(ret.createDate||"").replace('T',' '),//发布日期
+        category=Array.isArray(ret.category)?ret.category:(ret.category?[ret.category]:[]),//分类
+        tags=Array.isArray(ret.tags)?ret.tags:(ret.tags?[ret.tags]:[]),//标签
         priority=void 0===ret.priority?"0.5":ret.priority,//权重
         changefreq=void 0===ret.changefreq?"daily":ret.changefreq,//更新频率
-        contentMD=ret["content-markdown-doc"],//文章内容-md格式
-        contentHtml=ret["content-html-code"],//文章内容-html格式
+        contentMD=String(ret["content-markdown-doc"]||""),//文章内容-md格式
+        contentHtml=String(ret["content-html-code"]||""),//文章内容-html格式
         contentText="",//文章摘要
-        top_timestamp=ret.top_timestamp*1,//置顶则设置时间戳,不置顶时为0
-        modify_timestamp=new Date().getTime()+8*60*60*1000,//修改时间戳
-        hidden=ret.hidden*1,//是否隐藏
+        top_timestamp=Number(ret.top_timestamp)||0,//置顶时间戳
+        modify_timestamp=Date.now()+8*60*60*1000,//修改时间戳
+        hidden=Number(ret.hidden)||0,//是否隐藏
         status=["draft","scheduled"].includes(ret.status)?ret.status:"published",
-        scheduledAt=ret.scheduledAt||"",
-        id=ret.id;//文章id
+        scheduledAt=String(ret.scheduledAt||""),
+        id=String(ret.id||"");//文章id
         
     //校验参数完整性
-    if(title.length>0
+    const scheduleTime=Date.parse(scheduledAt);
+    if(id && /^\d{6}$/.test(id) && title.length>0 && title.length<=300
+      && img.length<=2048 && link.length<=200
+      && contentMD.length<=1000000 && contentHtml.length<=1000000
+      && category.length<=30 && tags.length<=50
       && (status==="draft" || (createDate.length>0 && category.length>0 && contentMD.length>0 && contentHtml.length>0))
-      && (status!=="scheduled" || Number.isFinite(Date.parse(scheduledAt)))){
+      && (status!=="scheduled" || (Number.isFinite(scheduleTime) && scheduleTime>Date.now()))
+      && await getArticle(id)){
           
       contentText=contentHtml.replace(/<\/?[^>]*>/g,"").trim().substring(0,OPT.readMoreLength);//摘要
       //组装文章json

@@ -195,13 +195,14 @@ Disallow: /admin`,//robots.txt设置
             ["clean"]
           ]}
         });
-        const article=window.articleJson || {};
-        const initialHtml=article.contentHtml || "";
+        const article=(typeof articleJson!=="undefined" && articleJson) || window.articleJson || {};
+        const initialHtml=article.contentHtml || (window.mdEditor && typeof mdEditor.getHTML==="function" ? mdEditor.getHTML() : "");
         if(initialHtml){
           quill.clipboard.dangerouslyPasteHTML(initialHtml);
-        }else if(window.mdEditor && mdEditor.getMarkdown()){
-          // 新文章/旧数据缺少 HTML 时，尽量沿用原 Markdown 编辑器内容。
+        }else if(window.mdEditor && typeof mdEditor.getMarkdown==="function"){
+          // HTML 不存在时保留原 Markdown 内容，避免编辑旧文章时丢失正文。
           markdownField.value=mdEditor.getMarkdown();
+          quill.setText(markdownField.value);
         }
         const turndown=new TurndownService({
           headingStyle:"atx",

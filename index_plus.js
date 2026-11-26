@@ -876,7 +876,7 @@ async function handle_admin(request){
     async function exportArticle(arr=[],cursor="",limit=1){
       //分页获取文章内容
       const list=await CFBLOG.list({limit:limit,cursor:cursor});
-      if(!1 in list) return {};
+      if(!list || !Array.isArray(list.keys)) return {};
       arr=arr.concat(list.keys)
       console.log("导出: ",typeof list, JSON.stringify(list))
       //判断是否导出完毕
@@ -975,13 +975,17 @@ async function handle_admin(request){
         modify_timestamp=new Date().getTime()+8*60*60*1000,//修改时间戳
         hidden=ret.hidden*1,//是否隐藏
         status=["draft","scheduled"].includes(ret.status)?ret.status:"published",
-        scheduledAt=ret.scheduledAt||"",
+        scheduledAt=String(ret.scheduledAt||""),
         id="";//文章id
     
-    //校验参数完整性
-    if(title.length>0
+    // 校验字段长度与文章状态，避免异常输入占用 KV 或产生无效定时任务。
+    const scheduleTime=Date.parse(String(scheduledAt||""));
+    if(title.length>0 && title.length<=300
+      && String(img).length<=2048 && String(link).length<=200
+      && contentMD.length<=1000000 && contentHtml.length<=1000000
+      && category.length<=30 && tags.length<=50
       && (status==="draft" || (createDate.length>0 && category.length>0 && contentMD.length>0 && contentHtml.length>0))
-      && (status!=="scheduled" || (Number.isFinite(Date.parse(scheduledAt)) && Date.parse(scheduledAt)>Date.now()))){
+      && (status!=="scheduled" || (Number.isFinite(scheduleTime) && scheduleTime>Date.now()))){
 
       id=await generateId(),
       contentText=contentHtml.replace(/<\/?[^>]*>/g,"").trim().substring(0,OPT.readMoreLength);//摘要

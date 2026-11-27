@@ -1058,7 +1058,7 @@ async function handle_admin(request, workerEnv){
       if(null != article){
         xml+="\n\t\t<content>"+escapeXml(article.contentMD)+"</content>"
       }
-      xml+="\n\t\t<url>"+escapeXml("https://"+OPT.siteDomain+"/article/"+articles_all[i].id+"/"+articles_all[i].link+".html")+"</url>",
+      xml+="\n\t\t<url>"+escapeXml("https://"+OPT.siteDomain+getArticleUrl(articles_all[i]))+"</url>",
       xml+="\n\t\t<time>"+escapeXml(safeSitemapDate(articles_all[i].createDate))+"</time>",
       xml+="\n\t</blog>";
     }
@@ -1077,7 +1077,7 @@ async function handle_admin(request, workerEnv){
     let xml='<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd" xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
     for(var i=0;i<articles_all.length;i++){
       xml+="\n\t<url>",
-      xml+="\n\t\t<loc>"+escapeXml("https://"+OPT.siteDomain+"/article/"+articles_all[i].id+"/"+articles_all[i].link+".html")+"</loc>",
+      xml+="\n\t\t<loc>"+escapeXml("https://"+OPT.siteDomain+getArticleUrl(articles_all[i]))+"</loc>",
       xml+="\n\t\t<lastmod>"+escapeXml(safeSitemapDate(articles_all[i].createDate))+"</lastmod>",
       xml+="\n\t\t<changefreq>"+safeSitemapChangefreq(articles_all[i].changefreq)+"</changefreq>",
       xml+="\n\t\t<priority>"+safeSitemapPriority(articles_all[i].priority)+"</priority>",

@@ -15,5 +15,10 @@
       "binding": "BLOG_ASSETS",
       "bucket_name": "cfblognext-assets"
     }
-  ]
+  ],
+  "triggers": {
+    "crons": [
+      "* * * * *"
+    ]
+  }
 }

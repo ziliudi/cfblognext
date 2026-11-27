@@ -1484,14 +1484,14 @@ async function getThemeHtml(template_path){
         if(typeof articleJson!=="undefined"&&articleJson)initial=articleJson.contentHtml||articleJson.contentMD||"";
         if(!initial&&window.cfblogInitialHtml)initial=window.cfblogInitialHtml;
         var editor=document.createElement("section");editor.id="cfblog-editor";
-        editor.innerHTML=`<div id="cfblog-editor-toolbar" role="toolbar" aria-label="文字编辑工具栏">
-          <button type="button" data-cmd="undo" title="撤销">↶</button><button type="button" data-cmd="redo" title="重做">↷</button>
-          <button type="button" data-cmd="bold" title="加粗"><b>B</b></button><button type="button" data-cmd="italic" title="斜体"><i>I</i></button><button type="button" data-cmd="underline" title="下划线"><u>U</u></button>
-          <button type="button" data-block="h2">标题</button><button type="button" data-block="p">正文</button>
-          <button type="button" data-cmd="insertUnorderedList">• 列表</button><button type="button" data-cmd="insertOrderedList">1. 列表</button>
-          <button type="button" data-cmd="justifyLeft">左对齐</button><button type="button" data-cmd="justifyCenter">居中</button><button type="button" data-cmd="justifyRight">右对齐</button>
-          <button type="button" data-action="link">链接</button><button type="button" data-action="image">图片</button><button type="button" data-action="quote">引用</button><button type="button" data-action="clear">清除格式</button>
-        </div><div id="cfblog-editor-area" contenteditable="true" role="textbox" aria-label="文章正文" aria-multiline="true"></div>`;
+        editor.innerHTML='<div id="cfblog-editor-toolbar" role="toolbar" aria-label="文字编辑工具栏">' +
+          '<button type="button" data-cmd="undo" title="撤销">↶</button><button type="button" data-cmd="redo" title="重做">↷</button>' +
+          '<button type="button" data-cmd="bold" title="加粗"><b>B</b></button><button type="button" data-cmd="italic" title="斜体"><i>I</i></button><button type="button" data-cmd="underline" title="下划线"><u>U</u></button>' +
+          '<button type="button" data-block="h2">标题</button><button type="button" data-block="p">正文</button>' +
+          '<button type="button" data-cmd="insertUnorderedList">• 列表</button><button type="button" data-cmd="insertOrderedList">1. 列表</button>' +
+          '<button type="button" data-cmd="justifyLeft">左对齐</button><button type="button" data-cmd="justifyCenter">居中</button><button type="button" data-cmd="justifyRight">右对齐</button>' +
+          '<button type="button" data-action="link">链接</button><button type="button" data-action="image">图片</button><button type="button" data-action="quote">引用</button><button type="button" data-action="clear">清除格式</button>' +
+          '</div><div id="cfblog-editor-area" contenteditable="true" role="textbox" aria-label="文章正文" aria-multiline="true"></div>';
         var area=editor.querySelector("#cfblog-editor-area");
         var md=document.createElement("textarea");md.name="content-markdown-doc";md.hidden=true;
         var htmlField=document.createElement("textarea");htmlField.name="content-html-code";htmlField.hidden=true;

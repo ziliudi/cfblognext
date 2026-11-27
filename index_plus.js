@@ -1487,6 +1487,7 @@ async function getThemeHtml(template_path){
   
   // 新建文章时分类为可选项；移除旧版主题仍强制要求分类及检查不存在的 WidgetMenu 的前端校验。
   if(template_path==="admin/index"){
+    html=html.replace('onclick="saveAddNew()">保存</a>','onclick="saveAddNew()">立即发布</a>');
     html=html.replace("|| $('#category').val() == \"\" || $('#category').val() == null","");
     html=html.replace("$('#WidgetMenu').val() == \"\" || $('#WidgetMenu').val() == null\n            || ","");
     html=html.replace("分类<span style=\"color: red;\">*</span>","分类");

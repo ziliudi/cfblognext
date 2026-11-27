@@ -1030,10 +1030,10 @@ async function handle_admin(request){
 
     // 富文本编辑器可能只提交 HTML 或纯文本其中一个字段；发布前补齐另一种格式。
     if(!contentHtml.trim() && contentMD.trim()){
-      contentHtml=contentMD.split(/\\r?\\n/).map(line=>line.trim()?"<p>"+line.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")+"</p>":"").join("");
+      contentHtml=contentMD.split(/\r?\n/).map(line=>line.trim()?"<p>"+line.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")+"</p>":"").join("");
     }
     if(!contentMD.trim() && contentHtml.trim()){
-      contentMD=contentHtml.replace(/<br\\s*\\/?\s*>/gi,"\\n").replace(/<\\/(p|div|h[1-6]|li)>/gi,"\\n").replace(/<[^>]*>/g,"").replace(/&nbsp;/g," ").trim();
+      contentMD=contentHtml.replace(/<br\s*\/?\s*>/gi,"\n").replace(/<\/(p|div|h[1-6]|li)>/gi,"\n").replace(/<[^>]*>/g,"").replace(/&nbsp;/g," ").trim();
     }
     
     // 校验字段长度与文章状态，避免异常输入占用 KV 或产生无效定时任务。
@@ -1147,10 +1147,10 @@ async function handle_admin(request){
 
     // 富文本编辑器可能只提交 HTML 或纯文本其中一个字段；发布前补齐另一种格式。
     if(!contentHtml.trim() && contentMD.trim()){
-      contentHtml=contentMD.split(/\\r?\\n/).map(line=>line.trim()?"<p>"+line.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")+"</p>":"").join("");
+      contentHtml=contentMD.split(/\r?\n/).map(line=>line.trim()?"<p>"+line.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")+"</p>":"").join("");
     }
     if(!contentMD.trim() && contentHtml.trim()){
-      contentMD=contentHtml.replace(/<br\\s*\\/?\s*>/gi,"\\n").replace(/<\\/(p|div|h[1-6]|li)>/gi,"\\n").replace(/<[^>]*>/g,"").replace(/&nbsp;/g," ").trim();
+      contentMD=contentHtml.replace(/<br\s*\/?\s*>/gi,"\n").replace(/<\/(p|div|h[1-6]|li)>/gi,"\n").replace(/<[^>]*>/g,"").replace(/&nbsp;/g," ").trim();
     }
         
     //校验参数完整性

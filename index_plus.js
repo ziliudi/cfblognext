@@ -3,6 +3,8 @@ import { env } from "cloudflare:workers";
 /**------【①.谋而后定：配置区】-----**/
 
 'use strict';
+const CFBLOG = env.CFBLOG;
+
 const ACCOUNT = { //账号相关，安全性更高
 
   // 部署前必须设置为仅自己知道的强凭据；留空或保留占位值时后台认证会拒绝所有请求。
@@ -291,7 +293,7 @@ Disallow: /admin`,//robots.txt设置
 //---对部分配置进行处理---
 {
   //CFBLOG 通用变量
-  const CFBLOG = ACCOUNT.kv_var;
+  // KV namespace is read from the Worker's CFBLOG binding above.
   
   //默认为非私密博客
   if(null==OPT.privateBlog){

@@ -1027,6 +1027,14 @@ async function handle_admin(request){
         status=["draft","scheduled"].includes(ret.status)?ret.status:"published",
         scheduledAt=String(ret.scheduledAt||""),
         id="";//文章id
+
+    // 富文本编辑器可能只提交 HTML 或纯文本其中一个字段；发布前补齐另一种格式。
+    if(!contentHtml.trim() && contentMD.trim()){
+      contentHtml=contentMD.split(/\\r?\\n/).map(line=>line.trim()?"<p>"+line.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")+"</p>":"").join("");
+    }
+    if(!contentMD.trim() && contentHtml.trim()){
+      contentMD=contentHtml.replace(/<br\\s*\\/?\s*>/gi,"\\n").replace(/<\\/(p|div|h[1-6]|li)>/gi,"\\n").replace(/<[^>]*>/g,"").replace(/&nbsp;/g," ").trim();
+    }
     
     // 校验字段长度与文章状态，避免异常输入占用 KV 或产生无效定时任务。
     const scheduleTime=Date.parse(String(scheduledAt||""));
@@ -1136,6 +1144,14 @@ async function handle_admin(request){
         status=["draft","scheduled"].includes(ret.status)?ret.status:"published",
         scheduledAt=String(ret.scheduledAt||""),
         id=String(ret.id||"");//文章id
+
+    // 富文本编辑器可能只提交 HTML 或纯文本其中一个字段；发布前补齐另一种格式。
+    if(!contentHtml.trim() && contentMD.trim()){
+      contentHtml=contentMD.split(/\\r?\\n/).map(line=>line.trim()?"<p>"+line.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")+"</p>":"").join("");
+    }
+    if(!contentMD.trim() && contentHtml.trim()){
+      contentMD=contentHtml.replace(/<br\\s*\\/?\s*>/gi,"\\n").replace(/<\\/(p|div|h[1-6]|li)>/gi,"\\n").replace(/<[^>]*>/g,"").replace(/&nbsp;/g," ").trim();
+    }
         
     //校验参数完整性
     const scheduleTime=Date.parse(scheduledAt);

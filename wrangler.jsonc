@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "cfblognext",
+  "main": "index_plus.js",
+  "compatibility_date": "2026-11-27",
+  "keep_vars": true,
+  "kv_namespaces": [
+    {
+      "binding": "CFBLOG",
+      "id": "5e4ef30eda9444269532f9717ccacd35"
+    }
+  ]
+}

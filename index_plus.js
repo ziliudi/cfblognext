@@ -317,7 +317,7 @@ Disallow: /admin`,//robots.txt设置
 // Module Worker 入口：网页请求与 Cron 定时任务共用同一 Worker。
 export default {
   fetch(request, env, ctx) {
-    return handlerRequest({ request });
+    return handlerRequest({ request, env });
   },
   scheduled(controller, env, ctx) {
     ctx.waitUntil(publishScheduledArticles());
@@ -358,7 +358,7 @@ async function handlerRequest(event){
   let paths=url.pathname.trim("/").split("/")
 
   // 后台与私密博客统一认证。不要将凭据写入日志或错误响应。
-  if(("admin"==paths[0]||true===OPT.privateBlog) &&!parseBasicAuth(request)){
+  if(("admin"==paths[0]||true===OPT.privateBlog) &&!parseBasicAuth(request, event.env)){
     return withSecurityHeaders(new Response("Unauthorized",{
       headers:{"WWW-Authenticate":'Basic realm="cfblog"'},
       status:401
@@ -1383,7 +1383,7 @@ async function handle_admin(request){
 /**------【④.抽丝剥茧，抽取公用的业务方法】-----**/
 
 //访问管理后台或私密博客，则进行Base Auth
-function parseBasicAuth(request){
+function parseBasicAuth(request, env){
     const auth=request.headers.get("Authorization");
 
     // 仅允许配置了独立 token 后，通过 token 导出公开的搜索索引和站点地图。

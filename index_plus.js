@@ -545,7 +545,7 @@ async function renderBlog(url){
       category_tag = paths.slice(1, paths.lastIndexOf("page")-1).join("") //tags、category后，分页前的为标签、分类名
     }
     category_tag = decodeURIComponent(category_tag)
-    articles = articles_all.filter(a => a[paths[0]].includes(category_tag))
+    articles = articles_all.filter(a => { const values=Array.isArray(a[paths[0]])?a[paths[0]]:(a[paths[0]]==null?[]:[a[paths[0]]]); return values.map(String).includes(category_tag); })
     break;
   }
   pageNo = parseInt(pageNo,10)
@@ -1042,7 +1042,7 @@ async function handle_admin(request){
       && String(img).length<=2048 && String(link).length<=200
       && contentMD.length<=1000000 && contentHtml.length<=1000000
       && category.length<=30 && tags.length<=50
-      && (status==="draft" || (createDate.length>0 && contentMD.length>0 && contentHtml.length>0))
+      && (status==="draft" || (createDate.trim().length>0 && contentHtml.trim().length>0))
       && (status!=="scheduled" || (Number.isFinite(scheduleTime) && scheduleTime>Date.now()))){
 
       id=await generateId(),
@@ -1159,7 +1159,7 @@ async function handle_admin(request){
       && img.length<=2048 && link.length<=200
       && contentMD.length<=1000000 && contentHtml.length<=1000000
       && category.length<=30 && tags.length<=50
-      && (status==="draft" || (createDate.length>0 && contentMD.length>0 && contentHtml.length>0))
+      && (status==="draft" || (createDate.trim().length>0 && contentHtml.trim().length>0))
       && (status!=="scheduled" || (Number.isFinite(scheduleTime) && scheduleTime>Date.now()))
       && await getArticle(id)){
           
@@ -1329,7 +1329,7 @@ async function getRecentlyArticles(articles){
       if(articles_recently[i].top_timestamp && !articles_recently[i].title.startsWith(OPT.top_flag)){
         articles_recently[i].title = OPT.top_flag + articles_recently[i].title
       }
-      articles_recently[i].createDate10=articles_recently[i].createDate.substr(0,10),
+      articles_recently[i].createDate10=String(articles_recently[i].createDate||"").substr(0,10),
       articles_recently[i].url="/article/"+articles_recently[i].id+"/"+articles_recently[i].link+".html";
   }
   return articles_recently;
@@ -1344,11 +1344,11 @@ function processArticleProp(articles){
               articles[i].title = OPT.top_flag + articles[i].title
             }
             //调整文章的日期(yyyy-MM-dd)、年、月、日、内容长度和url
-            articles[i].createDate10=articles[i].createDate.substr(0,10),
-            articles[i].createDateYear=articles[i].createDate.substr(0,4),
-            articles[i].createDateMonth=articles[i].createDate.substr(5,7),
-            articles[i].createDateDay=articles[i].createDate.substr(8,10),
-            articles[i].contentLength=articles[i].contentText.length,
+            articles[i].createDate10=String(articles[i].createDate||"").substr(0,10),
+            articles[i].createDateYear=String(articles[i].createDate||"").substr(0,4),
+            articles[i].createDateMonth=String(articles[i].createDate||"").substr(5,7),
+            articles[i].createDateDay=String(articles[i].createDate||"").substr(8,10),
+            articles[i].contentLength=String(articles[i].contentText||"").length,
             articles[i].url="/article/"+articles[i].id+"/"+articles[i].link+".html";
         }
     }

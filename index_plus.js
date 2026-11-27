@@ -1529,7 +1529,7 @@ async function getThemeHtml(template_path){
     const optionalCategory = '<script>(function(){function relax(){' +
       'var forms=document.querySelectorAll("form");forms.forEach(function(form){' +
       'form.querySelectorAll("input,select,textarea").forEach(function(el){var key=((el.name||"")+" "+(el.id||"")).toLowerCase();var group=el.closest(".form-group,.form-item,.control-group");var text=group?group.textContent:"";if(key.indexOf("categor")>=0||text.indexOf("分类")>=0){el.required=false;el.removeAttribute("required");el.removeAttribute("aria-required");if(window.jQuery){try{window.jQuery(el).rules("remove","required");}catch(e){}}}});' +
-      'form.querySelectorAll("label").forEach(function(label){if(label.textContent.indexOf("分类")>=0){label.textContent=label.textContent.split("*").join("").replace("（可选）","")+"（可选）";}});' +
+      'form.querySelectorAll("label").forEach(function(label){if(label.textContent.indexOf("分类")>=0){var next=label.textContent.split("*").join("").replace("（可选）","")+"（可选）";if(label.textContent!==next)label.textContent=next;}});' +
       '});}' +
       'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",relax);else relax();' +
       'if(window.MutationObserver)new MutationObserver(relax).observe(document.documentElement,{childList:true,subtree:true});})();</script>';

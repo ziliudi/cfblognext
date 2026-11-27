@@ -883,6 +883,14 @@ async function handle_admin(request){
     
     //手动替换<!--{xxx}-->格式的参数
     html = theme_html.replaceHtmlPara("categoryJson",categoryJson).replaceHtmlPara("articleJson",articleJson.replaceAll("script>","script＞"))
+    // 服务端直接把当前文章 ID 写入编辑表单，避免客户端脚本未执行导致 ID 丢失。
+    if(/^\d{6}$/.test(String(id||""))){
+      const editIdField='<input type="hidden" name="id" value="'+String(id)+'">';
+      const editFormPattern=/(<form\b[^>]*\bid=["']editForm["'][^>]*>)/i;
+      const addFormPattern=/(<form\b[^>]*\bid=["']addNewForm["'][^>]*>)/i;
+      if(editFormPattern.test(html)) html=html.replace(editFormPattern,"$1"+editIdField);
+      else if(addFormPattern.test(html)) html=html.replace(addFormPattern,"$1"+editIdField);
+    }
   }
   
   //保存配置

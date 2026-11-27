@@ -883,29 +883,13 @@ async function handle_admin(request){
     
     //手动替换<!--{xxx}-->格式的参数
     html = theme_html.replaceHtmlPara("categoryJson",categoryJson).replaceHtmlPara("articleJson",articleJson.replaceAll("script>","script＞"))
-    // 服务端直接把当前文章 ID 写入编辑表单，避免客户端脚本未执行导致 ID 丢失。
-    if(/^\d{6}$/.test(String(id||""))){
-      const editIdField='<input type="hidden" name="id" value="'+String(id)+'">';
-      const editFormPattern=/(<form\b[^>]*\bid=["']editForm["'][^>]*>)/i;
-      const addFormPattern=/(<form\b[^>]*\bid=["']addNewForm["'][^>]*>)/i;
-      if(editFormPattern.test(html)) html=html.replace(editFormPattern,"$1"+editIdField);
-      else if(addFormPattern.test(html)) html=html.replace(addFormPattern,"$1"+editIdField);
-    }
-  }
-  
-  //保存配置
-  if("saveConfig"==paths[1]){
-    const ret=await parseReq(request);
-    let widgetCategory=ret.WidgetCategory,//分类
-        widgetMenu=ret.WidgetMenu,//导航
-        widgetLink=ret.WidgetLink;//链接
-    
-    //判断格式，写入分类、导航、链接到KV中
-    if(checkFormat(widgetCategory) && checkFormat(widgetMenu) && checkFormat(widgetLink)){
-      let success = await saveWidgetCategory(widgetCategory)
-      success = success && await saveWidgetMenu(widgetMenu)
-      success = success && await saveWidgetLink(widgetLink)
-      json = success ? '{"msg":"saved","rst":true}' : '{"msg":"Save Faild!!!","ret":false}'
+    // 服务端直接给主题原有的 id 输入框赋值，避免重复字段导致空值覆盖真实 ID。
+    if(/^\\d{6}$/.test(String(id||""))){
+      const idInputPattern=/<input\\b(?=[^>]*\\bname=["']id["'])[^>]*>/i;
+      html=html.replace(idInputPattern,function(tag){
+        tag=tag.replace(/\\svalue=["'][^"']*["']/i,"");
+        return tag.replace(/\\s*\\/? >$/,"") .replace(/\\s*\\/>$/,"")+ ' value="'+String(id)+'">';
+      });
     }else{
       json = '{"msg":"Not a JSON object","rst":false}'
     }

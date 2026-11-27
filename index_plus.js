@@ -1662,6 +1662,13 @@ async function getThemeHtml(template_path, articleId=null){
     html=html.replace("$('#WidgetMenu').val() == \"\" || $('#WidgetMenu').val() == null\n            || ","");
     html=html.replace("分类<span style=\"color: red;\">*</span>","分类");
     // 草稿允许不填写发布日期；原主题的 saveAddNew 校验会在发请求前拦截无日期草稿。
+    // 覆盖旧主题的“信息不全”校验：分类为可选项，菜单配置也不是文章发布必填项。
+    const saveFunctionStart=html.indexOf("function saveAddNew()");
+    if(saveFunctionStart>=0){
+      const before=html.slice(0,saveFunctionStart),after=html.slice(saveFunctionStart);
+      const validation=/if\\s*\\([\\s\\S]*?\\)\\s*\\{\\s*alert\\("信息不全"\\);\\s*return;\\s*\\}/;
+      html=before+after.replace(validation,'if($("#title").val()==="" || $("#title").val()==null){alert("请填写文章标题");return;}');
+    }
     html=html.replace("|| $('#createDate').val() == \"\" || $('#createDate').val() == null","|| ($('#cfblog-status').val() !== \"draft\" && ($('#createDate').val() == \"\" || $('#createDate').val() == null))");
     // 后台文章列表增加管理操作列，编辑/删除均针对当前行的真实 ID。
     html=html.replace("tableContent += '<tr><td>'+Info.id+'</td><td><a href=\"/admin/edit/'+Info.id+'/\">'+Info.title+'</a></td><td>'+Info.createDate.replace(\"T\",\"\")+'</td></tr>';","tableContent += '<tr><td><input type=\"checkbox\" class=\"cfblog-row-select\" value=\"'+Info.id+'\"></td><td>'+Info.id+'</td><td><a href=\"/admin/edit/'+Info.id+'/\">'+Info.title+'</a></td><td>'+(Info.createDate||\"\").replace(\"T\",\"\")+'</td><td><button class=\"btn btn-xs btn-warning\" type=\"button\" onclick=\"cfblogManageOne(\\''+Info.id+'\\',\\''+(Info.top_timestamp?'untop':'top')+'\\')\">'+(Info.top_timestamp?'取消置顶':'置顶')+'</button> <button class=\"btn btn-xs btn-default\" type=\"button\" onclick=\"cfblogManageOne(\\''+Info.id+'\\',\\'hide\\')\">隐藏</button> <button class=\"btn btn-xs btn-danger\" type=\"button\" onclick=\"cfblogManageOne(\\''+Info.id+'\\',\\'delete\\')\">删除</button></td></tr>';");

@@ -1491,6 +1491,14 @@ async function getThemeHtml(template_path){
     html=html.replace("|| $('#category').val() == \"\" || $('#category').val() == null","");
     html=html.replace("$('#WidgetMenu').val() == \"\" || $('#WidgetMenu').val() == null\n            || ","");
     html=html.replace("分类<span style=\"color: red;\">*</span>","分类");
+    // 草稿允许不填写发布日期；原主题的 saveAddNew 校验会在发请求前拦截无日期草稿。
+    html=html.replace("|| $('#createDate').val() == \"\" || $('#createDate').val() == null","|| ($('#cfblog-status').val() !== \"draft\" && ($('#createDate').val() == \"\" || $('#createDate').val() == null))");
+    // 后台文章列表增加管理操作列，编辑/删除均针对当前行的真实 ID。
+    html=html.replace("tableContent += '<tr><td>'+Info.id+'</td><td><a href=\"/admin/edit/'+Info.id+'\">'+Info.title+'</a></td><td>'+Info.createDate.replace(\"T\",\"\")+'</td></tr>';","tableContent += '<tr><td>'+Info.id+'</td><td><a href=\"/admin/edit/'+Info.id+'\">'+Info.title+'</a></td><td>'+(Info.createDate||\"\").replace(\"T\",\"\")+'</td><td><a class=\"btn btn-xs btn-primary\" href=\"/admin/edit/'+Info.id+'\">编辑</a> <button class=\"btn btn-xs btn-danger\" type=\"button\" onclick=\"cfblogDeleteArticle(\\''+Info.id+'\\')\">删除</button></td></tr>';");
+    html=html.replace('<tr><td>ID</td><td>标题</td><td>创建日期</td></tr>','<tr><td>ID</td><td>标题</td><td>创建日期</td><td>管理</td></tr>');
+    const articleManagement='<script>window.cfblogDeleteArticle=function(id){if(!/^\\d{6}$/.test(String(id))||!confirm("确定删除文章 "+id+" 吗？此操作不可撤销。"))return;fetch("/admin/delete/"+encodeURIComponent(id)+"/",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:"{}"}).then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(x){alert(x.msg||"删除完成");if(x.rst)location.reload();}).catch(function(){alert("删除失败，请检查登录状态后重试");});};</script>';
+    html=html.includes("</body>")?html.replace("</body>",articleManagement+"</body>"):html+articleManagement;
+
   }
 
   // 独立可视化文字编辑器：直接替换正文容器，不依赖异步挂载。

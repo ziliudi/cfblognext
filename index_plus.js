@@ -107,67 +107,8 @@ Disallow: /admin`,//robots.txt设置
     let searchxml=\`<a  tabindex="0"  role="button"  type="submit" id="btn_export" class="btn btn-default"  href="/admin/search.xml" >导出search.xml</a>\`
     $('form#importForm a').last().after(searchxml);//设置页面添加导出search.xml导出按钮
     
-    //关闭email匹配和@匹配，否则图片使用jsdelivr的cdn，如果有版本号会匹配成“mailto:xxx”从而导致显示异常
-    mdEditor.settings.emailLink=false;
-    mdEditor.settings.atLink=false;
-
-    //mdEditor.settings.toc=false
-    //mdEditor.settings.tocm=true  // Using [TOCM]
-    //mdEditor.settings.tocContainer="#custom-toc-container" // 自定义 ToC 容器层
-    //mdEditor.settings.gfm=false
-    //mdEditor.settings.tocDropdown=true
-    //mdEditor.settings.markdownSourceCode=true // 是否保留 Markdown 源码，即是否删除保存源码的 Textarea 标签
-    mdEditor.settings.emoji=true
-    mdEditor.settings.taskList=true;// 默认不解析
-    mdEditor.settings.tex=true;// 默认不解析
-    mdEditor.settings.flowChart=true; // 默认不解析
-    mdEditor.settings.sequenceDiagram=true;// 默认不解析
-    
-    //开启全局html标签解析-不推荐
-    //mdEditor.settings.htmlDecode=true;
-    
-    window.mdEditor=mdEditor;    
-    //editormd工具栏上添加html标签解析开关
-    mdEditor.getToolbarHandles().parseHtml=function(){
-      let ele = $(".editormd-menu li a i:last");
-      if(ele.hasClass('fa-toggle-off')){
-        ele.removeClass('fa-toggle-off').addClass('fa-toggle-on');
-        mdEditor.settings.htmlDecode = true;
-      }else if(ele.hasClass('fa-toggle-on')){
-        ele.removeClass('fa-toggle-on').addClass('fa-toggle-off')
-        mdEditor.settings.htmlDecode = false;
-      }
-      mdEditor.setMarkdown(mdEditor.getMarkdown());
-    }
-    setTimeout(function(){
-      $(".editormd-menu").append('<li class="divider" unselectable="on">|</li><li><a href="javascript:;" title="解析HTML标签" unselectable="on"><i class="fa fa-toggle-off" name="parseHtml" unselectable="on"> 解析HTML标签 </i></a></li>')
-      mdEditor.setToolbarHandler(mdEditor.getToolbarHandles())
-    },300)
-
-    // 正文编辑器使用主题原生 Editor.md。不要清空 #content，
-    // 否则会销毁主题已初始化的 Markdown 编辑器并导致正文区域消失。
-    (function(){
-      const form=document.getElementById("addNewForm") || document.getElementById("editForm");
-      const box=document.getElementById("content");
-      if(!form || !box) return;
-      const source=box.querySelector("textarea");
-      if(source){
-        source.name="content-markdown-doc";
-        source.style.display="";
-        source.style.width="100%";
-        source.style.minHeight="420px";
-        source.setAttribute("aria-label","文章正文（Markdown）");
-      }
-      const save=function(){
-        if(window.mdEditor && typeof window.mdEditor.getMarkdown==="function" && source){
-          source.value=window.mdEditor.getMarkdown();
-        }
-      };
-      form.addEventListener("submit",save,true);
-      const button=document.querySelector("#btn_saveAddNew, #btn_saveEdit, #btn_save");
-      if(button) button.addEventListener("click",save,true);
-      window.cfblogSyncWordEditor=save;
-    })();
+    // 已切换到 TinyMCE 可视化编辑器，不再调用 Editor.md API。
+    window.mdEditor = null;
 
     //文章工作流：草稿 / 立即发布 / 定时发布
     (function(){

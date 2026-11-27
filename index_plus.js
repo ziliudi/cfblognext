@@ -1,3 +1,4 @@
+import { pinyin } from "pinyin-pro";
 import { env } from "cloudflare:workers";
 
 /**------【①.谋而后定：配置区】-----**/
@@ -738,9 +739,10 @@ async function handle_article(identifier, legacySlug){
   try{token=decodeURIComponent(token);}catch(e){}
   token=token.replace(/\.html$/i,"");
   let requestedArticle=null;
-  if(/^\d{1,12}$/.test(token)){
-    requestedArticle=await getArticle(token);
-  }else{
+  // 新文章以 slug 作为 KV key；旧文章仍可通过原六位数字 ID 读取。
+  requestedArticle=await getArticle(token);
+  // 自定义永久链接仍然优先作为公开访问地址，兼容旧文章与手动设置的 link。
+  if(!requestedArticle){
     const all=await getAllArticlesList();
     const match=all.find(item=>String(item.link||"").trim()===token);
     if(match) requestedArticle=await getArticle(match.id);
@@ -759,7 +761,7 @@ async function handle_article(identifier, legacySlug){
   const menus=await getWidgetMenu(), categories=await getWidgetCategory(),
         tags=await getWidgetTags(), links=await getWidgetLink(),
         articles_recently=await getRecentlyArticles();
-  let articles_sibling=await getSiblingArticle(id);
+  let articles_sibling=await getSiblingArticle(requestedArticle.id);
   if(!articles_sibling || !articles_sibling[1]) articles_sibling=[undefined,requestedArticle,undefined];
   processArticleProp(articles_sibling.filter(Boolean));
   const article=articles_sibling[1];
@@ -909,8 +911,8 @@ async function handle_admin(request, workerEnv){
     
     //手动替换<!--{xxx}-->格式的参数
     html = theme_html.replaceHtmlPara("categoryJson",categoryJson).replaceHtmlPara("articleJson",articleJson.replaceAll("script>","script＞"))
-    // 服务端直接给主题原有的 id 输入框赋值，避免重复字段导致空值覆盖真实 ID。
-    if(/^\d{6}$/.test(String(id||""))){
+    // 服务端直接给主题原有的 id 输入框赋值，兼容旧数字 ID 与新 slug ID。
+    if(/^[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(String(id||""))){
       const idInputPattern=/<input\b(?=[^>]*\bname=["']id["'])[^>]*>/i;
       html=html.replace(idInputPattern,function(tag){
         tag=tag.replace(/\svalue=["'][^"']*["']/i,"");
@@ -1209,23 +1211,18 @@ async function handle_admin(request, workerEnv){
     }
   }
   
-  //删除
+  //删除：先核对文章索引，兼容六位数字 ID 与新 slug ID，避免误删其他 KV 键。
   if("delete"==paths[1]){
-    let id=paths[2]
-    if(6==id.length){
+    let id=String(paths[2]||"");
+    let e=await getAllArticlesList();
+    const index=e.findIndex(item=>String(item.id)===id);
+    if(index>=0){
       await CFBLOG.delete(id);
-      let e=await getAllArticlesList();
-      for(r=0;r<e.length;r++){
-        if(id==e[r].id){
-          e.splice(r,1);
-          
-          await saveArticlesList(JSON.stringify(e))
-          json = '{"msg":"Delete ('+id+')  OK","rst":true,"id":"'+id+'"}'
-          break;
-        }
-      }
+      e.splice(index,1);
+      await saveArticlesList(JSON.stringify(e));
+      json=JSON.stringify({msg:"Delete ("+id+") OK",rst:true,id});
     }else{
-      json = '{"msg":"Delete  false ","rst":false,"id":"'+id+'"}'
+      json=JSON.stringify({msg:"Delete false",rst:false,id});
     }
   }
   
@@ -1315,7 +1312,7 @@ async function handle_admin(request, workerEnv){
         
     //校验参数完整性
     const scheduleTime=Date.parse(scheduledAt);
-    if(id && /^\d{6}$/.test(id) && title.length>0 && title.length<=300
+    if(id && /^[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(id) && title.length>0 && title.length<=300
       && img.length<=2048 && link.length<=200
       && contentMD.length<=1000000 && contentHtml.length<=1000000
       && category.length<=30 && tags.length<=50
@@ -1381,7 +1378,7 @@ async function handle_admin(request, workerEnv){
       json = '{"msg":"Edit OK","rst":true,"id":"'+id+'"}'
     }else{
       const missing=[];
-      if(!id || !/^\d{6}$/.test(id)) missing.push("文章ID无效");
+      if(!id || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(id)) missing.push("文章ID无效");
       if(!title.trim() || title.length>300) missing.push("标题为空或超过300字符");
       if(img.length>2048) missing.push("特色图片地址超过2048字符");
       if(link.length>200) missing.push("永久链接超过200字符");
@@ -1391,7 +1388,7 @@ async function handle_admin(request, workerEnv){
       if(status!=="draft" && !createDate.trim()) missing.push("创建日期为空");
       if(status!=="draft" && !contentHtml.trim()) missing.push("正文为空（富文本 HTML 未同步）");
       if(status==="scheduled" && !(Number.isFinite(scheduleTime) && scheduleTime>Date.now())) missing.push("定时发布时间无效或已过期");
-      if(id && /^\d{6}$/.test(id) && !await getArticle(id)) missing.push("找不到要编辑的文章");
+      if(id && /^[a-z0-9]+(?:-[a-z0-9]+)*$/i.test(id) && !await getArticle(id)) missing.push("找不到要编辑的文章");
       json=JSON.stringify({msg:"保存失败："+(missing.join("；")||"字段校验未通过，请检查表单数据"),rst:false});
     }
   }
@@ -1819,12 +1816,12 @@ async function getThemeHtml(template_path, articleId=null){
 
 //根据文章id，返回上篇、下篇文章，文章内容页底部会用到
 async function getSiblingArticle(id){
-    id=("00000"+parseInt(id)).substr(-6);
-    //读取文章列表，查找指定id的文章
+    id=String(id||"");
+    //按实际文章 ID 查找，不再把新 slug ID 强制转换为六位数字。
     let articles_all=await getArticlesList(),
         article_idx=-1;
     for(var i=0,len=articles_all.length;i<len;i++)
-      if(articles_all[i].id==id){
+      if(String(articles_all[i].id)===id){
           article_idx=i;
           break
       }
@@ -1896,30 +1893,36 @@ async function parseReq(request){
     return URL.createObjectURL(blob);
 }
 
-//为文章分配ID
-async function generateId(){
-    // SYSTEM_INDEX_NUM 旧逻辑通过 JSON.parse 读取数字，空值会变成 []，损坏值会变成 NaN。
-    // 直接读取原始 KV，并以文章列表中的最大有效数字 ID 兜底，绝不生成 000NaN。
-    const rawSeq=await CFBLOG.get("SYSTEM_INDEX_NUM");
-    const parsedSeq=Number(rawSeq);
-    const articles=await getAllArticlesList();
-    let maxExisting=0;
-    const used=new Set();
-    for(const article of articles){
-      const existing=String(article&&article.id||"");
-      if(/^\d{6}$/.test(existing)){
-        const n=Number(existing);
-        if(Number.isSafeInteger(n) && n>maxExisting) maxExisting=n;
-        used.add(existing);
+// 根据标题生成新文章 slug ID。中文按汉字转无声调拼音，英文按单词转小写，混排统一用连字符。
+async function generateId(title){
+    const source=String(title||"").normalize("NFKC");
+    const tokens=[];
+    for(const char of source){
+      if(/\p{Script=Han}/u.test(char)){
+        tokens.push(pinyin(char,{toneType:"none"}));
+      }else if(/[A-Za-z]/.test(char)){
+        // 连续英文单词在下面按词组装；这里暂存字符，避免把每个字母计为一个词。
+        const last=tokens[tokens.length-1];
+        if(last && last.__latin){
+          last.value+=char.toLowerCase();
+        }else{
+          tokens.push({__latin:true,value:char.toLowerCase()});
+        }
+      }else if(/[0-9]/.test(char)){
+        // 数字不是约定的标题字符；保留为独立 token，避免静默丢失标题信息。
+        tokens.push(char);
       }
     }
-    let next=Number.isSafeInteger(parsedSeq)&&parsedSeq>=0?Math.max(parsedSeq,maxExisting)+1:maxExisting+1;
-    if(next<1) next=1;
-    while(next<=999999 && used.has(String(next).padStart(6,"0"))) next++;
-    if(next>999999) throw new Error("文章 ID 已达到六位数上限");
-    const id=String(next).padStart(6,"0");
-    await saveIndexNum(next);
-    return id;
+    const parts=tokens.slice(0,8).map(token=>typeof token==="string"?token:(token&&token.__latin?token.value:String(token||"")))
+      .map(part=>part.toLowerCase().replace(/[^a-z0-9]+/g,"").trim()).filter(Boolean);
+    const base=parts.join("-")||"article";
+    const articles=await getAllArticlesList();
+    const used=new Set((Array.isArray(articles)?articles:[]).map(item=>String(item&&item.id||"")));
+    let candidate=base,suffix=2;
+    while(used.has(candidate) || await getArticle(candidate)){
+      candidate=base+"-"+suffix++;
+    }
+    return candidate;
 }
 
 /**------【⑤.术业有专攻，读写KV方法集】-----**/

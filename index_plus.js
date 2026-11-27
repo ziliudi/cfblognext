@@ -1675,7 +1675,7 @@ async function generateId(){
     const used=new Set();
     for(const article of articles){
       const existing=String(article&&article.id||"");
-      if(/^\\d{6}$/.test(existing)){
+      if(/^\d{6}$/.test(existing)){
         const n=Number(existing);
         if(Number.isSafeInteger(n) && n>maxExisting) maxExisting=n;
         used.add(existing);

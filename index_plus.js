@@ -1142,7 +1142,7 @@ async function handle_admin(request, workerEnv){
       && (status==="draft" || (createDate.trim().length>0 && contentHtml.trim().length>0))
       && (status!=="scheduled" || (Number.isFinite(scheduleTime) && scheduleTime>Date.now()))){
 
-      id=await generateId(),
+      id=await generateId(title),
       contentText=contentHtml.replace(/<\/?[^>]*>/g,"").trim().substring(0,OPT.readMoreLength);//摘要
       //组装文章json
       let article={
@@ -1896,25 +1896,12 @@ async function parseReq(request){
 // 根据标题生成新文章 slug ID。中文按汉字转无声调拼音，英文按单词转小写，混排统一用连字符。
 async function generateId(title){
     const source=String(title||"").normalize("NFKC");
-    const tokens=[];
-    for(const char of source){
-      if(/\p{Script=Han}/u.test(char)){
-        tokens.push(pinyin(char,{toneType:"none"}));
-      }else if(/[A-Za-z]/.test(char)){
-        // 连续英文单词在下面按词组装；这里暂存字符，避免把每个字母计为一个词。
-        const last=tokens[tokens.length-1];
-        if(last && last.__latin){
-          last.value+=char.toLowerCase();
-        }else{
-          tokens.push({__latin:true,value:char.toLowerCase()});
-        }
-      }else if(/[0-9]/.test(char)){
-        // 数字不是约定的标题字符；保留为独立 token，避免静默丢失标题信息。
-        tokens.push(char);
-      }
-    }
-    const parts=tokens.slice(0,8).map(token=>typeof token==="string"?token:(token&&token.__latin?token.value:String(token||"")))
-      .map(part=>part.toLowerCase().replace(/[^a-z0-9]+/g,"").trim()).filter(Boolean);
+    // 每个汉字算一个词，连续英文字母算一个英文单词；空格和标点仅作分隔。
+    const rawTokens=source.match(/\p{Script=Han}|[A-Za-z]+|[0-9]+/gu)||[];
+    const parts=rawTokens.slice(0,8).map(token=>{
+      if(/\p{Script=Han}/u.test(token)) return pinyin(token,{toneType:"none"});
+      return token.toLowerCase();
+    }).map(part=>String(part||"").toLowerCase().replace(/[^a-z0-9]+/g,"").trim()).filter(Boolean);
     const base=parts.join("-")||"article";
     const articles=await getAllArticlesList();
     const used=new Set((Array.isArray(articles)?articles:[]).map(item=>String(item&&item.id||"")));

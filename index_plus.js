@@ -623,6 +623,8 @@ async function renderBlog(url){
   cfg.currentYear=new Date().getFullYear();
   cfg.footerStartYear=OPT.footerStartYear;
   cfg.footerOwner=OPT.footerOwner;
+  cfg.footerOwnerUrl=OPT.footerOwnerUrl;
+  cfg.footerYearLabel=OPT.footerStartYear===String(cfg.currentYear)?String(cfg.currentYear):OPT.footerStartYear+"-"+cfg.currentYear;
   cfg.pageNo=pageNo;
   cfg.isArchive=!!archiveYear;
 
@@ -713,7 +715,7 @@ footer{padding:25px 0 42px;border-top:1px solid var(--line);color:#999;font-size
 {{#articleNewer}}<a class="next" href="{{url}}"><small>下一篇</small><span>{{title}}</span></a>{{/articleNewer}}
 </nav></section>
 </main>
-<footer class="cfblog-footer"><div>本站基于cfblog，由openAi大力协助，运行于cloudflare</div><div>Copyright©{{footerStartYear}}-{{currentYear}} {{footerOwner}}版权所有</div></footer>
+<footer class="cfblog-footer"><div>本站基于cfblog，由openAi大力协助，运行于cloudflare</div><div>Copyright©{{footerYearLabel}} {{#footerOwnerUrl}}<a href="{{footerOwnerUrl}}" rel="noopener noreferrer">{{footerOwner}}</a>{{/footerOwnerUrl}}{{^footerOwnerUrl}}{{footerOwner}}{{/footerOwnerUrl}}版权所有</div></footer>
 </div>
 <div class="drawer-mask" id="drawerMask"></div><aside class="drawer" id="drawer" aria-hidden="true">
 <div class="drawer-head"><span>导航</span><button class="drawer-close" id="menuClose" aria-label="关闭导航菜单">×</button></div>
@@ -800,7 +802,7 @@ async function handle_article(id){
     archiveList:Object.keys(yearMap).sort((a,b)=>b.localeCompare(a)).map(year=>({year,count:yearMap[year]})),
     categoryItems:Array.from(categorySet).map(name=>({name,url:"/category/"+encodeURIComponent(name)})),
     tagItems:Array.from(tagSet).map(name=>({name,url:"/tags/"+encodeURIComponent(name)})),
-    linkItems,currentYear:new Date().getFullYear(),footerStartYear:OPT.footerStartYear,footerOwner:OPT.footerOwner,OPT
+    linkItems,currentYear:new Date().getFullYear(),footerStartYear:OPT.footerStartYear,footerOwner:OPT.footerOwner,footerOwnerUrl:OPT.footerOwnerUrl,footerYearLabel:OPT.footerStartYear===String(new Date().getFullYear())?String(new Date().getFullYear()):OPT.footerStartYear+"-"+new Date().getFullYear(),OPT
   };
   const html=Mustache.render(minimalArticleTemplate(),cfg);
   return new Response(html,{headers:{"content-type":"text/html;charset=UTF-8"},status:200});
@@ -828,11 +830,11 @@ async function handle_admin(request){
                     .replaceHtmlPara("menuJson",JSON.stringify(menuJson))
                     .replaceHtmlPara("linkJson",JSON.stringify(linkJson))
     // 设置页分为“编辑设置”和“博客设置”；博客资料从 KV 读取并回填。
-    const settingsUi=`<h3 style="margin-top:0">博客设置</h3><form id="blogSettingsForm" role="form"><div class="form-group"><label for="cfblog-site-name">博客名称</label><input class="form-control" id="cfblog-site-name" name="siteName" maxlength="100" required></div><div class="form-group"><label for="cfblog-site-description">博客简介（SEO 描述）</label><textarea class="form-control" id="cfblog-site-description" name="siteDescription" rows="3" maxlength="500"></textarea></div><div class="form-group"><label for="cfblog-site-intro">自我介绍（显示在博客首页）</label><textarea class="form-control" id="cfblog-site-intro" name="siteIntro" rows="5" maxlength="2000"></textarea></div><hr><h4>页脚设置</h4><div class="form-group"><label for="cfblog-footer-start-year">版权起始年份</label><input class="form-control" type="number" id="cfblog-footer-start-year" name="footerStartYear" min="1900" max="2099" required></div><div class="form-group"><label for="cfblog-footer-owner">版权作者 / 博客名</label><input class="form-control" id="cfblog-footer-owner" name="footerOwner" maxlength="100" required></div><p class="help-block">页脚第一行固定显示平台说明；第二行自动使用当前年份。</p><button type="button" class="btn btn-primary" id="cfblog-save-blog-settings">保存博客设置</button></form><hr>`;
+    const settingsUi=`<h3 style="margin-top:0">博客设置</h3><form id="blogSettingsForm" role="form"><div class="form-group"><label for="cfblog-site-name">博客名称</label><input class="form-control" id="cfblog-site-name" name="siteName" maxlength="100" required></div><div class="form-group"><label for="cfblog-site-description">博客简介（SEO 描述）</label><textarea class="form-control" id="cfblog-site-description" name="siteDescription" rows="3" maxlength="500"></textarea></div><div class="form-group"><label for="cfblog-site-intro">自我介绍（显示在博客首页）</label><textarea class="form-control" id="cfblog-site-intro" name="siteIntro" rows="5" maxlength="2000"></textarea></div><hr><h4>页脚设置</h4><div class="form-group"><label for="cfblog-footer-start-year">版权起始年份</label><input class="form-control" type="number" id="cfblog-footer-start-year" name="footerStartYear" min="1900" max="2099" required></div><div class="form-group"><label for="cfblog-footer-owner">版权作者 / 博客名</label><input class="form-control" id="cfblog-footer-owner" name="footerOwner" maxlength="100" required></div><div class="form-group"><label for="cfblog-footer-owner-url">作者 / 博客名链接</label><input class="form-control" type="url" id="cfblog-footer-owner-url" name="footerOwnerUrl" maxlength="2048" placeholder="https://example.com"><small class="help-block">填写后，前端页脚中的作者 / 博客名将链接到此网址；留空则不添加链接。</small></div><p class="help-block">页脚第一行固定显示平台说明；第二行自动使用当前年份。</p><button type="button" class="btn btn-primary" id="cfblog-save-blog-settings">保存博客设置</button></form><hr>`;
     html=html.replace(`<form id="configForm" role="form" >`,`<form id="configForm" role="form" ><h3>编辑设置</h3>`);
     html=html.replace(`<div class="container" >\n\t\t\t<form id="configForm"`,`<div class="container" >\n\t\t\t${settingsUi}<form id="configForm"`);
-    const blogSettingsJson=JSON.stringify({siteName:blogSettings.siteName||OPT.siteName,siteDescription:blogSettings.siteDescription||OPT.siteDescription,siteIntro:blogSettings.siteIntro||OPT.siteIntro,footerStartYear:blogSettings.footerStartYear||"2024",footerOwner:blogSettings.footerOwner||"自留地"}).replace(/</g,"\\u003c");
-    html=html.replace(`</body>`,`<script>(function(){const v=${blogSettingsJson};document.getElementById("cfblog-site-name").value=v.siteName||"";document.getElementById("cfblog-site-description").value=v.siteDescription||"";document.getElementById("cfblog-site-intro").value=v.siteIntro||"";document.getElementById("cfblog-footer-start-year").value=v.footerStartYear||"2024";document.getElementById("cfblog-footer-owner").value=v.footerOwner||"自留地";document.getElementById("cfblog-save-blog-settings").addEventListener("click",function(){const form=document.getElementById("blogSettingsForm");const data=["siteName","siteDescription","siteIntro","footerStartYear","footerOwner"].map(name=>({name,value:form.elements[name].value}));fetch("/admin/saveConfig/",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}).then(async r=>{const x=await r.json();if(!r.ok||!x.rst)throw new Error(x.msg||("HTTP "+r.status));alert(x.msg);}).catch(e=>alert("保存失败："+e.message));});})();</script></body>`);
+    const blogSettingsJson=JSON.stringify({siteName:blogSettings.siteName||OPT.siteName,siteDescription:blogSettings.siteDescription||OPT.siteDescription,siteIntro:blogSettings.siteIntro||OPT.siteIntro,footerStartYear:blogSettings.footerStartYear||"2024",footerOwner:blogSettings.footerOwner||"自留地",footerOwnerUrl:blogSettings.footerOwnerUrl||""}).replace(/</g,"\\u003c");
+    html=html.replace(`</body>`,`<script>(function(){const v=${blogSettingsJson};document.getElementById("cfblog-site-name").value=v.siteName||"";document.getElementById("cfblog-site-description").value=v.siteDescription||"";document.getElementById("cfblog-site-intro").value=v.siteIntro||"";document.getElementById("cfblog-footer-start-year").value=v.footerStartYear||"2024";document.getElementById("cfblog-footer-owner").value=v.footerOwner||"自留地";document.getElementById("cfblog-footer-owner-url").value=v.footerOwnerUrl||"";document.getElementById("cfblog-save-blog-settings").addEventListener("click",function(){const form=document.getElementById("blogSettingsForm");const data=["siteName","siteDescription","siteIntro","footerStartYear","footerOwner","footerOwnerUrl"].map(name=>({name,value:form.elements[name].value}));fetch("/admin/saveConfig/",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}).then(async r=>{const x=await r.json();if(!r.ok||!x.rst)throw new Error(x.msg||("HTTP "+r.status));alert(x.msg);}).catch(e=>alert("保存失败："+e.message));});})();</script></body>`);
 //添加后台首页配置
     if(OPT.admin_home_idx && OPT.admin_home_idx>=1 && OPT.admin_home_idx<=4){
       html = html.replace("$('#myTab li:eq(0) 1').tab('show')","$($('#myTab a[href*=\"'+location.hash+'\"]')[0]||$('#myTab a:eq("+OPT.admin_home_idx+")')).tab('show')")
@@ -911,19 +913,21 @@ async function handle_admin(request){
     try{payload=await request.json();}catch(e){payload=[];}
     const values={};
     if(Array.isArray(payload)){
-      for(const item of payload){if(item&&["siteName","siteDescription","siteIntro","footerStartYear","footerOwner"].includes(item.name)) values[item.name]=String(item.value==null?"":item.value).trim();}
+      for(const item of payload){if(item&&["siteName","siteDescription","siteIntro","footerStartYear","footerOwner","footerOwnerUrl"].includes(item.name)) values[item.name]=String(item.value==null?"":item.value).trim();}
     }else if(payload&&typeof payload==="object"){
-      for(const key of ["siteName","siteDescription","siteIntro","footerStartYear","footerOwner"]) if(payload[key]!==undefined) values[key]=String(payload[key]==null?"":payload[key]).trim();
+      for(const key of ["siteName","siteDescription","siteIntro","footerStartYear","footerOwner","footerOwnerUrl"]) if(payload[key]!==undefined) values[key]=String(payload[key]==null?"":payload[key]).trim();
     }
     const current=await getSavedBlogSettings();
     const next={...current};
-    for(const key of ["siteName","siteDescription","siteIntro","footerStartYear","footerOwner"]){if(values[key]!==undefined) next[key]=values[key];}
-    const limits={siteName:100,siteDescription:500,siteIntro:2000,footerOwner:100};
+    for(const key of ["siteName","siteDescription","siteIntro","footerStartYear","footerOwner","footerOwnerUrl"]){if(values[key]!==undefined) next[key]=values[key];}
+    const limits={siteName:100,siteDescription:500,siteIntro:2000,footerOwner:100,footerOwnerUrl:2048};
+    const footerOwnerUrl=String(next.footerOwnerUrl||"").trim();
+    const invalidFooterOwnerUrl=footerOwnerUrl!==""&&!/^https?:\/\//i.test(footerOwnerUrl);
     const footerYear=String(next.footerStartYear||"2024");
     const invalidFooterYear=!/^\d{4}$/.test(footerYear)||Number(footerYear)<1900||Number(footerYear)>new Date().getFullYear();
     const invalid=Object.keys(limits).find(key=>String(next[key]||"").length>limits[key]);
-    if(invalid || invalidFooterYear || !String(next.footerOwner||"").trim() || !String(next.siteName||"").trim()){
-      json=JSON.stringify({msg:invalid?("保存失败："+invalid+"超过长度限制"):invalidFooterYear?"版权起始年份格式无效或晚于当前年份":!String(next.footerOwner||"").trim()?"版权作者/博客名不能为空":"博客名称不能为空",rst:false});
+    if(invalid || invalidFooterYear || invalidFooterOwnerUrl || !String(next.footerOwner||"").trim() || !String(next.siteName||"").trim()){
+      json=JSON.stringify({msg:invalid?("保存失败："+invalid+"超过长度限制"):invalidFooterYear?"版权起始年份格式无效或晚于当前年份":invalidFooterOwnerUrl?"作者/博客名链接必须以 http:// 或 https:// 开头":!String(next.footerOwner||"").trim()?"版权作者/博客名不能为空":"博客名称不能为空",rst:false});
     }else{
       await CFBLOG.put("SYSTEM_BLOG_SETTINGS",JSON.stringify(next));
       const version=Number(await CFBLOG.get("SYSTEM_PUBLIC_CACHE_VERSION"))||1;
@@ -1523,7 +1527,7 @@ footer{padding:30px 0 42px;color:#999;font-size:12px;display:block}footer.cfblog
 <div class="stat"><strong>{{blogYearCount}}</strong><span>记录年份</span></div>
 </section>
 </main>
-<footer class="cfblog-footer"><div>本站基于cfblog，由openAi大力协助，运行于cloudflare</div><div>Copyright©{{footerStartYear}}-{{currentYear}} {{footerOwner}}版权所有</div></footer>
+<footer class="cfblog-footer"><div>本站基于cfblog，由openAi大力协助，运行于cloudflare</div><div>Copyright©{{footerYearLabel}} {{#footerOwnerUrl}}<a href="{{footerOwnerUrl}}" rel="noopener noreferrer">{{footerOwner}}</a>{{/footerOwnerUrl}}{{^footerOwnerUrl}}{{footerOwner}}{{/footerOwnerUrl}}版权所有</div></footer>
 </div>
 <div class="drawer-mask" id="drawerMask"></div>
 <aside class="drawer" id="siteDrawer" aria-hidden="true">
@@ -1576,12 +1580,12 @@ async function getBlogWordCount(articles){
 
 //获取前台模板源码, template_path:模板的相对路径
 async function getSavedBlogSettings(){
-  const defaults={siteName:OPT.siteName,siteDescription:OPT.siteDescription,siteIntro:OPT.siteIntro,footerStartYear:"2024",footerOwner:"自留地"};
+  const defaults={siteName:OPT.siteName,siteDescription:OPT.siteDescription,siteIntro:OPT.siteIntro,footerStartYear:"2024",footerOwner:"自留地",footerOwnerUrl:""};
   try{const value=await CFBLOG.get("SYSTEM_BLOG_SETTINGS");if(value)return {...defaults,...JSON.parse(value)};await CFBLOG.put("SYSTEM_BLOG_SETTINGS",JSON.stringify(defaults));return defaults;}catch(e){return defaults;}
 }
 async function applySavedBlogSettings(){
   const saved=await getSavedBlogSettings();
-  for(const key of ["siteName","siteDescription","siteIntro","footerOwner"]){if(typeof saved[key]==="string") OPT[key]=saved[key];}
+  for(const key of ["siteName","siteDescription","siteIntro","footerOwner","footerOwnerUrl"]){if(typeof saved[key]==="string") OPT[key]=saved[key];}
   const year=String(saved.footerStartYear||"2024");
   OPT.footerStartYear=/^\d{4}$/.test(year)&&Number(year)<=new Date().getFullYear()?year:"2024";
 }

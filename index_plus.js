@@ -1473,6 +1473,13 @@ async function getThemeHtml(template_path){
   if(template_path==="index") return minimalIndexTemplate();
   let html = await (await fetch(OPT.themeURL+template_path+".html",{cf:{cacheTtl:600}})).text();
   
+  // 新建文章时分类为可选项；移除旧版主题仍强制要求分类及检查不存在的 WidgetMenu 的前端校验。
+  if(template_path==="admin/index"){
+    html=html.replace("|| $('#category').val() == \"\" || $('#category').val() == null","");
+    html=html.replace("$('#WidgetMenu').val() == \"\" || $('#WidgetMenu').val() == null\n            || ","");
+    html=html.replace("分类<span style=\"color: red;\">*</span>","分类");
+  }
+
   // 独立可视化文字编辑器：直接替换正文容器，不依赖异步挂载。
   if(template_path==="admin/index" || template_path==="admin/edit"){
     html=html.replace(/<link\b[^>]*editormd[^>]*>/gi,"");

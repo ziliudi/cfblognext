@@ -1774,14 +1774,15 @@ async function getThemeHtml(template_path, articleId=null){
     const categoryData=JSON.stringify(Array.from(names)).replace(/</g,"\\u003c");
     const metaData=JSON.stringify(editorMeta).replace(/</g,"\\u003c");
     const script='<script>(function(){const names='+categoryData+',meta='+metaData+';function init(){' +
-      'const form=document.querySelector("form#addNewForm,form#editForm");if(!form)return;' +
-      'let field=form.querySelector("#category,[name=category],[name=\"category[]\"],[name*=categor i]");' +
+      // 新建页和三个编辑入口统一使用同一套表单初始化；主题表单 ID 变化时按字段自动兜底定位。
+      'const form=document.querySelector("form#addNewForm,form#editForm")||Array.from(document.forms).find(function(f){return f.querySelector("#category,[name*=categor i]")&&f.querySelector("#tags,[name*=tag i]");});if(!form)return;' +
+      'let field=form.querySelector("#category,[name=category],[name="category[]"],[name*="categor" i]");' +
       'if(field){const select=document.createElement("select");select.id="category";select.name="category";select.multiple=true;select.className=field.className||"form-control";select.size=Math.min(6,Math.max(3,names.length+1));' +
       'names.forEach(function(n){const o=document.createElement("option");o.value=n;o.textContent=n;o.selected=meta.categories.includes(n);select.appendChild(o);});' +
       'const custom=document.createElement("option");custom.value="__cfblog_custom__";custom.textContent="＋ 自定义";select.appendChild(custom);field.replaceWith(select);' +
       'select.addEventListener("change",function(){if(!Array.from(select.selectedOptions).some(o=>o.value==="__cfblog_custom__"))return;const value=prompt("请输入自定义分类名称");const name=String(value||"").trim();if(name){let o=Array.from(select.options).find(x=>x.value===name);if(!o){o=document.createElement("option");o.value=name;o.textContent=name;select.insertBefore(o,custom);}o.selected=true;}custom.selected=false;});' +
       'const note=document.createElement("small");note.className="help-block";note.textContent="可多选；自定义分类保存文章后会自动加入分类选项。";select.insertAdjacentElement("afterend",note);}' +
-      'let tag=form.querySelector("#tags,[name=tags],[name=\"tags[]\"],[name*=tag i]");' +
+      'let tag=form.querySelector("#tags,[name=tags],[name=\"tags[]\"],[name*=\"tag\" i]);' +
       'if(tag){if(tag.tagName==="SELECT"||tag.type==="hidden"||tag.type==="checkbox"){const input=document.createElement("input");input.type="text";input.className=tag.className||"form-control";input.id="tags";input.name="tags";tag.replaceWith(input);tag=input;}else{tag.type="text";tag.name="tags";}tag.value=meta.tags.join(", ");tag.placeholder="多个标签用英文逗号 , 分隔";' +
       'const note=document.createElement("small");note.className="help-block";note.textContent="多个标签请用英文逗号 , 分隔。";tag.insertAdjacentElement("afterend",note);}' +
       '}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();})();</script>';

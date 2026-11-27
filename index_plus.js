@@ -4,8 +4,8 @@
 const ACCOUNT = { //账号相关，安全性更高
 
   // 部署前必须设置为仅自己知道的强凭据；留空或保留占位值时后台认证会拒绝所有请求。
-  "user" : "CHANGE_ME_ADMIN_USER", //博客后台用户名
-  "password" : "CHANGE_ME_USE_A_LONG_RANDOM_PASSWORD", //建议使用至少 20 位随机密码
+  "user" : "houtai", //博客后台用户名
+  "password" : "adminmima19598", //建议使用至少 20 位随机密码
   "third_token" : "", //可选的只读导出 Token；不使用时保持为空
   "cacheZoneId":"935xxxxxxxxxxxx",//区域 ID
   "cacheToken":"AQxxxxxxxx",//API token

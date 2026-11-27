@@ -296,7 +296,7 @@ async function handlerRequest(event){
       k = await handle_admin(request, event.env);
       break;
     case "article": //文章内容页
-      k = await handle_article(paths[1]);
+      k = await handle_article(paths[1], paths[2]);
       break;
     case "": //文章 首页
     case "page": //文章 分页
@@ -416,7 +416,7 @@ async function handle_sitemap(request){
     xml='<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9 http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd" xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">';
     for(var i=0;i<articles_all.length;i++){
       xml+="\n\t<url>",
-      xml+="\n\t\t<loc>"+escapeXml("https://"+OPT.siteDomain+"/article/"+articles_all[i].id+"/"+articles_all[i].link+".html")+"</loc>",
+      xml+="\n\t\t<loc>"+escapeXml("https://"+OPT.siteDomain+getArticleUrl(articles_all[i]))+"</loc>",
       xml+="\n\t\t<lastmod>"+escapeXml(safeSitemapDate(articles_all[i].createDate))+"</lastmod>",
       xml+="\n\t\t<changefreq>"+safeSitemapChangefreq(articles_all[i].changefreq)+"</changefreq>",
       xml+="\n\t\t<priority>"+safeSitemapPriority(articles_all[i].priority)+"</priority>",
@@ -732,9 +732,20 @@ footer{padding:25px 0 42px;border-top:1px solid var(--line);color:#999;font-size
 }
 
 //渲染前端博客的文章内容页
-async function handle_article(id){
-  //禁止通过猜测文章 ID 直接访问草稿和未到发布时间的定时文章。
-  const requestedArticle=await getArticle(id);
+async function handle_article(identifier, legacySlug){
+  // 新地址使用永久链接作为文章标识，同时兼容旧的 /article/ID/slug.html 地址。
+  let token=String(identifier||"");
+  try{token=decodeURIComponent(token);}catch(e){}
+  token=token.replace(/\.html$/i,"");
+  let requestedArticle=null;
+  if(/^\d{1,12}$/.test(token)){
+    requestedArticle=await getArticle(token);
+  }else{
+    const all=await getAllArticlesList();
+    const match=all.find(item=>String(item.link||"").trim()===token);
+    if(match) requestedArticle=await getArticle(match.id);
+  }
+  // 禁止通过猜测文章 ID 或永久链接直接访问草稿和未到发布时间的定时文章。
   if(!requestedArticle || requestedArticle.hidden || requestedArticle.status==="draft"){
     return new Response(OPT.html404,{headers:{"content-type":"text/html;charset=UTF-8"},status:404});
   }
@@ -768,7 +779,7 @@ async function handle_article(id){
   for(const sibling of [articles_sibling[0],articles_sibling[2]]){
     if(sibling){
       sibling.title=String(sibling.title||"");
-      sibling.url="/article/"+sibling.id+"/"+(sibling.link||"")+".html";
+      sibling.url=getArticleUrl(sibling);
     }
   }
   const title=article.title+" - "+OPT.siteName;
@@ -1024,7 +1035,7 @@ async function handle_admin(request, workerEnv){
       const a=await getArticle(item.id);if(!a)continue;
       const published=date(String(a.createDate||"").replace(" ","T"));
       const updated=date(a.modify_timestamp?Number(a.modify_timestamp):published);
-      const link=base+"article/"+encodeURIComponent(a.id)+"/"+encodeURIComponent(a.link||"")+".html";
+      const link=new URL(getArticleUrl(a),base).href;
       xml+='<entry><id>'+xe(link)+'</id><published>'+published+'</published><updated>'+updated+'</updated><title type="text">'+xe(a.title||"")+'</title><content type="html">'+xe(a.contentHtml||a.contentMD||"")+'</content><link rel="alternate" type="text/html" href="'+xe(link)+'"/>';if(a.status==="draft"||a.status==="scheduled"||a.hidden)xml+='<app:control><app:draft>yes</app:draft></app:control>';
       for(const v of (Array.isArray(a.category)?a.category:(a.category?[a.category]:[])))if(v)xml+='<category scheme="http://www.blogger.com/atom/ns#" term="'+xe(v)+'"/>';
       for(const v of (Array.isArray(a.tags)?a.tags:(a.tags?[a.tags]:[])))if(v)xml+='<category term="'+xe(v)+'"/>';
@@ -1475,6 +1486,13 @@ function sortArticle(articles){
   return sort(sort(articles,'id'),'top_timestamp');
 }
 
+// 生成文章永久链接：设置了永久链接时由它取代 ID；未设置时回退为 ID。
+function getArticleUrl(article){
+  const slug=String(article&&article.link||"").trim();
+  const key=slug||String(article&&article.id||"");
+  return "/article/"+encodeURIComponent(key)+".html";
+}
+
 //获取近期文章列表
 async function getRecentlyArticles(articles){
   if(!articles){
@@ -1491,7 +1509,7 @@ async function getRecentlyArticles(articles){
         articles_recently[i].title = OPT.top_flag + articles_recently[i].title
       }
       articles_recently[i].createDate10=String(articles_recently[i].createDate||"").substr(0,10),
-      articles_recently[i].url="/article/"+articles_recently[i].id+"/"+articles_recently[i].link+".html";
+      articles_recently[i].url=getArticleUrl(articles_recently[i]);
   }
   return articles_recently;
 }
@@ -1510,7 +1528,7 @@ function processArticleProp(articles){
             articles[i].createDateMonth=String(articles[i].createDate||"").substr(5,7),
             articles[i].createDateDay=String(articles[i].createDate||"").substr(8,10),
             articles[i].contentLength=String(articles[i].contentText||"").length,
-            articles[i].url="/article/"+articles[i].id+"/"+articles[i].link+".html";
+            articles[i].url=getArticleUrl(articles[i]);
         }
     }
 }

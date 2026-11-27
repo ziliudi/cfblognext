@@ -1601,6 +1601,12 @@ async function getThemeHtml(template_path){
 
   }
 
+  if(template_path==="admin/edit"){
+    const originalActions='<a tabindex="0"  role="button"  type="submit" id="btn_saveEdit" class="btn btn-default" onclick="saveEdit()">保存</a>\n\t\t\t\t<a  type="submit" role="button" id="btn_delete" class="btn btn-warning" onclick="deleteArticle()">删除</a>';
+    const workflowActions='<div id="cfblog-edit-actions" class="form-group" style="width:100%;margin:12px 0;display:flex;gap:8px;flex-wrap:wrap"><button type="button" id="btn_saveEdit" class="btn btn-default" onclick="saveEdit()">按当前状态保存</button> <button type="button" class="btn btn-info" onclick="cfblogSaveEditAs(\'draft\')">保存为草稿</button> <button type="button" class="btn btn-success" onclick="cfblogSaveEditAs(\'published\')">立即发布</button> <button type="button" class="btn btn-primary" onclick="cfblogSaveEditAs(\'scheduled\')">定时发布</button> <button type="button" id="btn_delete" class="btn btn-warning" onclick="deleteArticle()">删除</button></div>';
+    html=html.replace(originalActions,workflowActions);
+  }
+
   // 独立可视化文字编辑器：直接替换正文容器，不依赖异步挂载。
   if(template_path==="admin/index" || template_path==="admin/edit"){
     html=html.replace(/<link\b[^>]*editormd[^>]*>/gi,"");
@@ -1629,6 +1635,10 @@ async function getThemeHtml(template_path){
       const reliableEditSave = '<script>(function(){window.saveEdit=function(){var form=document.getElementById("editForm"),area=document.getElementById("cfblog-editor-area"),md=document.getElementById("cfblog-content-md"),hf=document.getElementById("cfblog-content-html");if(area&&md&&hf){hf.value=area.innerHTML;md.value=area.innerText||area.textContent||"";}var article=window.articleJson||{},id=String(article.id||document.querySelector("#editForm input[name=id]")?.value||"");var payload=window.jQuery("#editForm").serializeArray().filter(function(item){return item.name!=="id";});payload.push({name:"id",value:id});window.jQuery.ajax({type:"POST",dataType:"json",contentType:"application/json; charset=utf-8",url:"/admin/saveEdit/",data:JSON.stringify(payload),success:function(result){alert(result.msg);},error:function(xhr){alert("保存请求失败："+xhr.status);}});};})();</script>';
       html=html.includes("</body>")?html.replace("</body>",reliableEditSave+"</body>"):html+reliableEditSave;
     }
+  }
+  if(template_path==="admin/edit"){
+    const editWorkflowActions='<script>(function(){window.cfblogSaveEditAs=function(status){var selector=document.getElementById("cfblog-status");if(!selector){alert("文章状态控件尚未加载，请刷新页面后重试");return;}selector.value=status;selector.dispatchEvent(new Event("change",{bubbles:true}));if(status==="scheduled"){var date=document.getElementById("cfblog-scheduled-at");if(!date||!date.value){alert("请先选择计划发布时间");if(date)date.focus();return;}if(new Date(date.value).getTime()<=Date.now()){alert("计划发布时间必须晚于当前时间");date.focus();return;}}if(typeof window.saveEdit==="function")window.saveEdit();};})();</script>';
+    html=html.includes("</body>")?html.replace("</body>",editWorkflowActions+"</body>"):html+editWorkflowActions;
   }
   if("admin/index"===template_path){
     const workflowDashboard = `

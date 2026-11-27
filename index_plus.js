@@ -1666,15 +1666,28 @@ async function parseReq(request){
 
 //为文章分配ID
 async function generateId(){
-    //KV中读取文章数量（初始化为1），并格式化为6位，不足6位前面补零
-    let article_id_seq=await getIndexNum();
-    if(""===article_id_seq||null===article_id_seq||"[]"===article_id_seq||void 0===article_id_seq){
-        await saveIndexNum(1)
-        return "000001"
-    }else{
-        await saveIndexNum(parseInt(article_id_seq)+1)
-        return ("00000"+(parseInt(article_id_seq)+1)).substr(-6)
+    // SYSTEM_INDEX_NUM 旧逻辑通过 JSON.parse 读取数字，空值会变成 []，损坏值会变成 NaN。
+    // 直接读取原始 KV，并以文章列表中的最大有效数字 ID 兜底，绝不生成 000NaN。
+    const rawSeq=await CFBLOG.get("SYSTEM_INDEX_NUM");
+    const parsedSeq=Number(rawSeq);
+    const articles=await getAllArticlesList();
+    let maxExisting=0;
+    const used=new Set();
+    for(const article of articles){
+      const existing=String(article&&article.id||"");
+      if(/^\\d{6}$/.test(existing)){
+        const n=Number(existing);
+        if(Number.isSafeInteger(n) && n>maxExisting) maxExisting=n;
+        used.add(existing);
+      }
     }
+    let next=Number.isSafeInteger(parsedSeq)&&parsedSeq>=0?Math.max(parsedSeq,maxExisting)+1:maxExisting+1;
+    if(next<1) next=1;
+    while(next<=999999 && used.has(String(next).padStart(6,"0"))) next++;
+    if(next>999999) throw new Error("文章 ID 已达到六位数上限");
+    const id=String(next).padStart(6,"0");
+    await saveIndexNum(next);
+    return id;
 }
 
 /**------【⑤.术业有专攻，读写KV方法集】-----**/

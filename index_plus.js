@@ -1516,6 +1516,10 @@ async function getThemeHtml(template_path){
       'area.addEventListener("input",sync);form.addEventListener("submit",sync,true);document.addEventListener("click",function(e){if(e.target.closest("#btn_saveAddNew,#btn_saveEdit"))sync();},true);sync();}' +
       'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();})();</script>';
     html=html.includes("</body>")?html.replace("</body>",editorBehavior+"</body>"):html+editorBehavior;
+    if(template_path==="admin/edit"){
+      const reliableEditSave = '<script>(function(){window.saveEdit=function(){var form=document.getElementById("editForm"),area=document.getElementById("cfblog-editor-area"),md=document.getElementById("cfblog-content-md"),hf=document.getElementById("cfblog-content-html");if(area&&md&&hf){hf.value=area.innerHTML;md.value=area.innerText||area.textContent||"";}var article=window.articleJson||{},id=String(article.id||document.querySelector("#editForm input[name=id]")?.value||"");var payload=window.jQuery("#editForm").serializeArray().filter(function(item){return item.name!=="id";});payload.push({name:"id",value:id});window.jQuery.ajax({type:"POST",dataType:"json",contentType:"application/json; charset=utf-8",url:"/admin/saveEdit/",data:JSON.stringify(payload),success:function(result){alert(result.msg);},error:function(xhr){alert("保存请求失败："+xhr.status);}});};})();</script>';
+      html=html.includes("</body>")?html.replace("</body>",reliableEditSave+"</body>"):html+reliableEditSave;
+    }
   }
   if("admin/index"===template_path){
     const workflowDashboard = `

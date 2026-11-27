@@ -281,7 +281,7 @@ async function handlerRequest(event){
 
   switch(paths[0]){
     case "favicon.ico": //图标
-      k = await handle_favicon(request);
+      k = await handle_favicon(request, event.env);
       break;
     case "robots.txt":
       k = await handle_robots(request);
@@ -293,7 +293,7 @@ async function handlerRequest(event){
       k = await handle_search(request);
       break;
     case "admin": //后台
-      k = await handle_admin(request);
+      k = await handle_admin(request, event.env);
       break;
     case "article": //文章内容页
       k = await handle_article(paths[1]);
@@ -366,8 +366,8 @@ function safeSitemapPriority(value){
 /**------【③.分而治之：各种请求分开处理】-----**/
 
 //访问: favicon.ico
-async function handle_favicon(request){
-  const bucket=env.BLOG_ASSETS;
+async function handle_favicon(request, workerEnv){
+  const bucket=workerEnv && workerEnv.BLOG_ASSETS;
   if(!bucket) return new Response("R2 binding BLOG_ASSETS is not configured",{status:503});
   const object=await bucket.get("site-favicon");
   if(!object) return new Response("Favicon not configured",{status:404,headers:{"Cache-Control":"no-store"}});
@@ -802,7 +802,7 @@ async function handle_article(id){
 }
 
 //后台请求处理
-async function handle_admin(request){
+async function handle_admin(request, workerEnv){
   let url = new URL(request.url),
       paths = url.pathname.trim("/").split("/"),
       html,//返回html
@@ -903,8 +903,8 @@ async function handle_admin(request){
   // 上传浏览器图标到 R2；仅接受常见位图格式并验证文件签名。
   if("uploadFavicon"==paths[1]){
     try{
-      const bucket=env.BLOG_ASSETS;
-      if(!bucket) throw new Error("R2 绑定 BLOG_ASSETS 不可用");
+      const bucket=workerEnv && workerEnv.BLOG_ASSETS;
+      if(!bucket) throw new Error("R2 绑定 BLOG_ASSETS 不可用，请检查 Worker 的 R2 bucket binding 名称是否为 BLOG_ASSETS");
       const form=await request.formData(), image=form.get("file");
       if(!image || typeof image.arrayBuffer!=="function") throw new Error("请选择图片文件");
       if(image.size<=0 || image.size>2*1024*1024) throw new Error("图片必须大于 0 且不超过 2 MB");

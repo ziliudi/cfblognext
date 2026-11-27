@@ -229,7 +229,7 @@ async function handlerRequest(event){
   if(paths[0]==="admin"){
     const method=request.method.toUpperCase();
     const action=paths[1]||"";
-    const readOnly=["","list","getList","edit","getDrafts","getScheduled","export","search.xml","sitemap.xml"];
+    const readOnly=["","list","getList","edit","getDrafts","getScheduled","export","exportBlogger","search.xml","sitemap.xml"];
     const writeOnly=["publish","saveConfig","import","saveAddNew","delete","saveEdit","manage","uploadFavicon"];
     if((readOnly.includes(action) && !["GET","HEAD"].includes(method)) ||
        (writeOnly.includes(action) && method!=="POST") ||
@@ -829,6 +829,14 @@ async function handle_admin(request, workerEnv){
     const blogSettingsJson=JSON.stringify({siteName:blogSettings.siteName||OPT.siteName,siteDescription:blogSettings.siteDescription||OPT.siteDescription,siteIntro:blogSettings.siteIntro||OPT.siteIntro,footerStartYear:blogSettings.footerStartYear||"2024",footerOwner:blogSettings.footerOwner||"自留地",footerOwnerUrl:blogSettings.footerOwnerUrl||""}).replace(/</g,"\\u003c");
     html=html.replace(`</body>`,`<script>(function(){const v=${blogSettingsJson};document.getElementById("cfblog-site-name").value=v.siteName||"";document.getElementById("cfblog-site-description").value=v.siteDescription||"";document.getElementById("cfblog-site-intro").value=v.siteIntro||"";document.getElementById("cfblog-footer-start-year").value=v.footerStartYear||"2024";document.getElementById("cfblog-footer-owner").value=v.footerOwner||"自留地";document.getElementById("cfblog-footer-owner-url").value=v.footerOwnerUrl||"";document.getElementById("cfblog-save-blog-settings").addEventListener("click",function(){const form=document.getElementById("blogSettingsForm");const data=["siteName","siteDescription","siteIntro","footerStartYear","footerOwner","footerOwnerUrl"].map(name=>({name,value:form.elements[name].value}));fetch("/admin/saveConfig/",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}).then(async r=>{const x=await r.json();if(!r.ok||!x.rst)throw new Error(x.msg||("HTTP "+r.status));alert(x.msg);}).catch(e=>alert("保存失败："+e.message));});const upload=document.getElementById("cfblog-upload-favicon");upload.addEventListener("click",async function(){const input=document.getElementById("cfblog-favicon-file"),status=document.getElementById("cfblog-favicon-status");if(!input.files||!input.files[0]){status.textContent="请先选择图片";return;}const data=new FormData();data.append("file",input.files[0]);upload.disabled=true;status.textContent="正在上传…";try{const r=await fetch("/admin/uploadFavicon/",{method:"POST",credentials:"same-origin",body:data});const x=await r.json();if(!r.ok||!x.rst)throw new Error(x.msg||("HTTP "+r.status));status.textContent=x.msg+"；刷新页面后生效。";}catch(e){status.textContent="上传失败："+e.message;}finally{upload.disabled=false;}});})();</script></body>`);
 //添加后台首页配置
+    // 编辑设置仅保留备份导入导出，移除旧的全局分类/标签/导航/链接配置表单。
+    const backupSettingsScript='<script>(function(){function mount(){const oldConfig=document.getElementById("configForm");if(oldConfig)oldConfig.remove();const oldImport=document.getElementById("importForm");' +
+      'const panel=document.createElement("section");panel.id="cfblog-backup-panel";panel.className="panel panel-default";panel.style.margin="16px 0";panel.innerHTML=\'<div class="panel-heading"><strong>导入 / 导出（备份）</strong></div><div class="panel-body"><p>导入本站 JSON 备份；导出可选择本站 JSON 或 Google Blogger Atom 格式。</p><div class="form-group"><label for="cfblog-backup-file">本站 JSON 备份文件</label><input type="file" class="form-control" id="cfblog-backup-file" accept=".json,application/json"></div><button type="button" class="btn btn-primary" id="cfblog-backup-import">导入本站备份</button> <span id="cfblog-backup-status"></span><hr><a class="btn btn-default" href="/admin/export">导出本站 JSON</a> <a class="btn btn-default" href="/admin/exportBlogger">导出 Google Blogger（Atom）</a></div>\';' +
+      'if(oldImport)oldImport.replaceWith(panel);else{const pane=Array.from(document.querySelectorAll(".tab-pane")).find(x=>/设置/.test(x.textContent))||document.querySelector(".tab-content")||document.querySelector(".container");if(pane)pane.appendChild(panel);}' +
+      'document.getElementById("cfblog-backup-import").addEventListener("click",async function(){const input=document.getElementById("cfblog-backup-file"),status=document.getElementById("cfblog-backup-status"),file=input.files&&input.files[0];if(!file){status.textContent="请先选择 JSON 文件";return;}if(file.size>2200000){status.textContent="备份文件超过导入接口大小限制";return;}this.disabled=true;status.textContent="正在导入…";try{const data=await file.text();JSON.parse(data);const response=await fetch("/admin/import/",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({importJson:data})});const result=await response.json();if(!response.ok||!result.rst)throw new Error(result.msg||("HTTP "+response.status));status.textContent="导入成功，请检查文章列表。";}catch(e){status.textContent="导入失败："+e.message;}finally{this.disabled=false;}});' +
+      '}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",mount);else mount();})();</script>';
+    html=html.includes("</body>")?html.replace("</body>",backupSettingsScript+"</body>"):html+backupSettingsScript;
+
     if(OPT.admin_home_idx && OPT.admin_home_idx>=1 && OPT.admin_home_idx<=4){
       html = html.replace("$('#myTab li:eq(0) 1').tab('show')","$($('#myTab a[href*=\"'+location.hash+'\"]')[0]||$('#myTab a:eq("+OPT.admin_home_idx+")')).tab('show')")
     }
@@ -1004,6 +1012,28 @@ async function handle_admin(request, workerEnv){
     }
   }
   
+  // 导出 Google Blogger 可识别的 Atom feed。
+  if("exportBlogger"===paths[1]){
+    const articles=await getArticlesList();
+    const xe=value=>String(value==null?"":value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;");
+    const date=value=>{const d=new Date(value||Date.now());return Number.isFinite(d.getTime())?d.toISOString():new Date().toISOString();};
+    const base="https://"+OPT.siteDomain+"/";
+    let xml='<?xml version="1.0" encoding="UTF-8"?>\\n<feed xmlns="http://www.w3.org/2005/Atom">';
+    xml+='<id>'+xe(base)+'</id><title type="text">'+xe(OPT.siteName)+'</title><updated>'+date(Date.now())+'</updated><link rel="self" type="application/atom+xml" href="'+xe(base+'feeds/posts/default')+'"/><link rel="alternate" type="text/html" href="'+xe(base)+'"/><author><name>'+xe(OPT.footerOwner||OPT.siteName)+'</name></author>';
+    for(const item of articles){
+      const a=await getArticle(item.id);if(!a)continue;
+      const published=date(String(a.createDate||"").replace(" ","T"));
+      const updated=date(a.modify_timestamp?Number(a.modify_timestamp):published);
+      const link=base+"article/"+encodeURIComponent(a.id)+"/"+encodeURIComponent(a.link||"")+".html";
+      xml+='<entry><id>'+xe(link)+'</id><published>'+published+'</published><updated>'+updated+'</updated><title type="text">'+xe(a.title||"")+'</title><content type="html">'+xe(a.contentHtml||a.contentMD||"")+'</content><link rel="alternate" type="text/html" href="'+xe(link)+'"/>';
+      for(const v of (Array.isArray(a.category)?a.category:(a.category?[a.category]:[])))if(v)xml+='<category term="'+xe(v)+'"/>';
+      for(const v of (Array.isArray(a.tags)?a.tags:(a.tags?[a.tags]:[])))if(v)xml+='<category term="'+xe(v)+'"/>';
+      xml+='</entry>';
+    }
+    xml+='</feed>';
+    file={name:"blogger-feed-"+Date.now()+".atom",content:xml};
+  }
+
   //导出search.xml 
   if("search.xml"===paths[1]){
     console.log("开始导出");
@@ -1712,6 +1742,22 @@ async function getThemeHtml(template_path){
     html=html.includes("</body>")?html.replace("</body>",workflowDashboard+"</body>"):html+workflowDashboard;
   }
   
+
+  // 编辑器分类和标签：默认分类固定提供，历史/自定义分类由已保存文章自动汇总。
+  if(template_path==="admin/index" || template_path==="admin/edit"){
+    const existing=await getAllArticlesList(),names=new Set(["散文","诗词","杂谈"]);
+    for(const item of existing){const values=Array.isArray(item.category)?item.category:(item.category?[item.category]:[]);values.forEach(v=>{if(String(v||"").trim())names.add(String(v).trim());});}
+    const data=JSON.stringify(Array.from(names)).replace(/</g,"\\u003c");
+    const script='<script>(function(){const names='+data+';function init(){const form=document.querySelector("form#addNewForm,form#editForm");if(!form)return;' +
+      'let field=form.querySelector("#category,[name=category],[name*=category i]");if(field){const article=window.articleJson||{};const current=location.pathname.indexOf("/admin/edit/")===0?(Array.isArray(article.category)?article.category:(article.category?[article.category]:[])):[];' +
+      'const select=document.createElement("select");select.id="category";select.name="category";select.multiple=true;select.className=field.className||"form-control";select.size=Math.min(6,Math.max(3,names.length+1));' +
+      'names.forEach(function(n){const o=document.createElement("option");o.value=n;o.textContent=n;o.selected=current.map(String).includes(n);select.appendChild(o);});const custom=document.createElement("option");custom.value="__cfblog_custom__";custom.textContent="＋ 自定义";select.appendChild(custom);field.replaceWith(select);' +
+      'select.addEventListener("change",function(){if(!Array.from(select.selectedOptions).some(o=>o.value==="__cfblog_custom__"))return;const value=prompt("请输入自定义分类名称");const name=String(value||"").trim();if(name){let o=Array.from(select.options).find(x=>x.value===name);if(!o){o=document.createElement("option");o.value=name;o.textContent=name;select.insertBefore(o,custom);}o.selected=true;}custom.selected=false;});' +
+      'const note=document.createElement("small");note.className="help-block";note.textContent="可多选；自定义分类随文章保存，之后会自动出现在分类选项中。";select.insertAdjacentElement("afterend",note);}' +
+      'let tag=form.querySelector("#tags,[name=tags],[name*=tag i]");if(tag){const article=window.articleJson||{};const old=Array.isArray(article.tags)?article.tags.join(", "):String(article.tags||"");if(tag.tagName==="SELECT"||tag.type==="hidden"){const input=document.createElement("input");input.type="text";input.className=tag.className||"form-control";input.id="tags";input.name="tags";input.value=old;tag.replaceWith(input);tag=input;}else{tag.type="text";tag.name="tags";if(!tag.value)tag.value=old;}tag.placeholder="多个标签用英文逗号 , 分隔";const note=document.createElement("small");note.className="help-block";note.textContent="多个标签请用英文逗号 , 分隔。";tag.insertAdjacentElement("afterend",note);}}' +
+      'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();})();</script>';
+    html=html.includes("</body>")?html.replace("</body>",script+"</body>"):html+script;
+  }
 
   // 分类完全可选：服务端移除分类字段的必填约束和标签星号，客户端再兜底处理动态表单。
   if(template_path==="admin/index" || template_path==="admin/edit"){

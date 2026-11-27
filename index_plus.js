@@ -884,12 +884,13 @@ async function handle_admin(request){
     //手动替换<!--{xxx}-->格式的参数
     html = theme_html.replaceHtmlPara("categoryJson",categoryJson).replaceHtmlPara("articleJson",articleJson.replaceAll("script>","script＞"))
     // 服务端直接给主题原有的 id 输入框赋值，避免重复字段导致空值覆盖真实 ID。
-    if(/^\\d{6}$/.test(String(id||""))){
-      const idInputPattern=/<input\\b(?=[^>]*\\bname=["']id["'])[^>]*>/i;
+    if(/^\d{6}$/.test(String(id||""))){
+      const idInputPattern=/<input\b(?=[^>]*\bname=["']id["'])[^>]*>/i;
       html=html.replace(idInputPattern,function(tag){
-        tag=tag.replace(/\\svalue=["'][^"']*["']/i,"");
-        return tag.replace(/\\s*\\/? >$/,"") .replace(/\\s*\\/>$/,"")+ ' value="'+String(id)+'">';
+        tag=tag.replace(/\svalue=["'][^"']*["']/i,"");
+        return tag.replace(/\s*\/?>$/,"").replace(/\s*\/?>$/,"") + ' value="'+String(id)+'">';
       });
+    }
     }else{
       json = '{"msg":"Not a JSON object","rst":false}'
     }

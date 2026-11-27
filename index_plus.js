@@ -1459,6 +1459,9 @@ async function getThemeHtml(template_path){
   
   // 后台采用所见即所得富文本编辑器（TinyMCE），不再加载 Markdown 编辑器。
   if(template_path==="admin/index" || template_path==="admin/edit"){
+    // 强制隐藏主题自带的 Editor.md 外观；正文区域由下方 TinyMCE 接管。
+    html=html.replace("</head>", '<style>.editormd,.editormd-toolbar,.editormd-fullscreen,.editormd-preview,.editormd-dialog{display:none!important}#content{width:100%;min-height:420px}</style></head>');
+
     html=html.replace(/<link[^>]+editormd\.css[^>]*>/gi,"");
     html=html.replace(/<script[^>]+editor\.md@[^>]+><\/script>/gi,"");
     html=html.replace(/var mdEditor = editormd\("content", \{[\s\S]*?\n\s*\}\);/, "window.cfblogInitialHtml = (typeof articleJson !== 'undefined' && articleJson && (articleJson.contentHtml || articleJson.contentMD)) || '';");

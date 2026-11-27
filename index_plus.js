@@ -20,7 +20,8 @@ const OPT = { //网站配置
   /*--前台参数--*/
   "siteDomain" : "域名",// 域名(不带https 也不带/)
   "siteName" : "CFBLOG-Plus",//博客名称
-  "siteDescription":"记录日常生活、阅读与思考，也分享一些折腾技术的过程。希望这些文字能留下时间的痕迹。",//首页自我介绍与站点描述，可按个人情况修改
+  "siteDescription":"记录日常生活、阅读与思考，也分享一些折腾技术的过程。希望这些文字能留下时间的痕迹。",//博客简介（SEO描述）
+  "siteIntro":"记录日常生活、阅读与思考，也分享一些折腾技术的过程。希望这些文字能留下时间的痕迹。",//首页自我介绍
   "keyWords":"cloudflare,KV,workers,blog",//关键字
   "logo":"https://cdn.jsdelivr.net/gh/Arronlong/cfblog-plus@master/themes/JustNews/files/logo2.png",//JustNews主题的logo
 
@@ -107,6 +108,14 @@ Disallow: /admin`,//robots.txt设置
     let searchxml=\`<a  tabindex="0"  role="button"  type="submit" id="btn_export" class="btn btn-default"  href="/admin/search.xml" >导出search.xml</a>\`
     $('form#importForm a').last().after(searchxml);//设置页面添加导出search.xml导出按钮
     
+    // 将原设置表单标记为“编辑设置”，并在同一设置页增加“博客设置”表单。
+    const settingsUi=`<h3 style="margin-top:0">编辑设置</h3><p class="text-muted">分类、菜单、友情链接及数据导入导出等原有设置。</p><hr><form id="blogSettingsForm" role="form"><h3>博客设置</h3><div class="form-group"><label for="cfblog-site-name">博客名称</label><input class="form-control" id="cfblog-site-name" name="siteName" maxlength="100" required></div><div class="form-group"><label for="cfblog-site-description">博客简介（SEO 描述）</label><textarea class="form-control" id="cfblog-site-description" name="siteDescription" rows="3" maxlength="500"></textarea></div><div class="form-group"><label for="cfblog-site-intro">自我介绍（显示在博客首页）</label><textarea class="form-control" id="cfblog-site-intro" name="siteIntro" rows="5" maxlength="2000"></textarea></div><button type="button" class="btn btn-primary" id="cfblog-save-blog-settings">保存博客设置</button></form><hr>`;
+    const configForm=html.indexOf(`<form id="configForm"`);
+    if(configForm>=0) html=html.slice(0,configForm)+settingsUi+html.slice(configForm);
+    html=html.replace(`<form id="configForm" role="form" >`,`<form id="configForm" role="form" ><h3>编辑设置</h3>`);
+    const blogSettingsJson=JSON.stringify({siteName:blogSettings.siteName||OPT.siteName,siteDescription:blogSettings.siteDescription||OPT.siteDescription,siteIntro:blogSettings.siteIntro||OPT.siteIntro}).replace(/</g,"\\u003c");
+    html=html.replace(`</body>`,`<script>(function(){const v=${blogSettingsJson};document.getElementById("cfblog-site-name").value=v.siteName||"";document.getElementById("cfblog-site-description").value=v.siteDescription||"";document.getElementById("cfblog-site-intro").value=v.siteIntro||"";document.getElementById("cfblog-save-blog-settings").addEventListener("click",function(){const data=["siteName","siteDescription","siteIntro"].map(name=>({name,value:document.querySelector("[name=\\""+name+"\\"]",document.getElementById("blogSettingsForm")).value}));fetch("/admin/saveConfig/",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}).then(async r=>{const x=await r.json();if(!r.ok||!x.rst)throw new Error(x.msg||("HTTP "+r.status));alert(x.msg);}).catch(e=>alert("保存失败："+e.message));});})();</script></body>`);
+
     // 已切换到 TinyMCE 可视化编辑器，不再调用 Editor.md API。
     window.mdEditor = null;
 
@@ -262,6 +271,9 @@ async function handlerRequest(event){
       }));
     }
   }
+
+  // 应用后台保存的博客资料设置；KV 中不存在时沿用代码默认值。
+  await applySavedBlogSettings();
 
   //组装缓存请求：保留查询参数，避免主题预览/分页参数互相污染缓存
   const D=caches.default,
@@ -814,12 +826,14 @@ async function handle_admin(request){
         //KV中读取导航栏、分类目录、链接、近期文章等配置信息
         categoryJson=await getWidgetCategory(),
         menuJson=await getWidgetMenu(),
-        linkJson=await getWidgetLink();
+        linkJson=await getWidgetLink(),
+        blogSettings=await getSavedBlogSettings();
     
     //手动替换<!--{xxx}-->格式的参数
     html = theme_html.replaceHtmlPara("categoryJson",JSON.stringify(categoryJson))
                     .replaceHtmlPara("menuJson",JSON.stringify(menuJson))
                     .replaceHtmlPara("linkJson",JSON.stringify(linkJson))
+                    .replaceHtmlPara("blogSettingsJson",JSON.stringify({siteName:blogSettings.siteName||OPT.siteName,siteDescription:blogSettings.siteDescription||OPT.siteDescription,siteIntro:blogSettings.siteIntro||OPT.siteIntro}))
                     
     //添加后台首页配置
     if(OPT.admin_home_idx && OPT.admin_home_idx>=1 && OPT.admin_home_idx<=4){
@@ -893,6 +907,32 @@ async function handle_admin(request){
     }
   }
   
+  //保存博客设置：仅允许修改博客名称、博客简介和自我介绍，不覆盖 Worker 的其他配置。
+  if("saveConfig"==paths[1]){
+    let payload=[];
+    try{payload=await request.json();}catch(e){payload=[];}
+    const values={};
+    if(Array.isArray(payload)){
+      for(const item of payload){if(item&&["siteName","siteDescription","siteIntro"].includes(item.name)) values[item.name]=String(item.value==null?"":item.value).trim();}
+    }else if(payload&&typeof payload==="object"){
+      for(const key of ["siteName","siteDescription","siteIntro"]) if(payload[key]!==undefined) values[key]=String(payload[key]==null?"":payload[key]).trim();
+    }
+    const current=await getSavedBlogSettings();
+    const next={...current};
+    for(const key of ["siteName","siteDescription","siteIntro"]){if(values[key]!==undefined) next[key]=values[key];}
+    const limits={siteName:100,siteDescription:500,siteIntro:2000};
+    const invalid=Object.keys(limits).find(key=>String(next[key]||"").length>limits[key]);
+    if(invalid || !String(next.siteName||"").trim()){
+      json=JSON.stringify({msg:invalid?("保存失败："+invalid+"超过长度限制"):"博客名称不能为空",rst:false});
+    }else{
+      await CFBLOG.put("SYSTEM_BLOG_SETTINGS",JSON.stringify(next));
+      const version=Number(await CFBLOG.get("SYSTEM_PUBLIC_CACHE_VERSION"))||1;
+      await CFBLOG.put("SYSTEM_PUBLIC_CACHE_VERSION",String(version+1));
+      await applySavedBlogSettings();
+      json=JSON.stringify({msg:"博客设置已保存",rst:true});
+    }
+  }
+
   //导入
   if("import"==paths[1]){
     const importJson=(await parseReq(request)).importJson;
@@ -1452,7 +1492,7 @@ footer{padding:30px 0 42px;color:#999;font-size:12px;display:flex;justify-conten
 </header>
 <section class="intro">
 <div class="eyebrow">A LITTLE ABOUT ME</div>
-<p>{{OPT.siteDescription}}</p>
+<p>{{OPT.siteIntro}}</p>
 <form class="search" id="siteSearch" role="search"><input id="searchInput" type="search" placeholder="搜索文章标题或内容…" autocomplete="off"><button type="submit">搜索 ↗</button></form>
 <div class="search-results" id="searchResults" aria-live="polite"></div>
 </section>
@@ -1530,6 +1570,14 @@ async function getBlogWordCount(articles){
 }
 
 //获取前台模板源码, template_path:模板的相对路径
+async function getSavedBlogSettings(){
+  try{const value=await CFBLOG.get("SYSTEM_BLOG_SETTINGS");return value?JSON.parse(value):{};}catch(e){return {};}
+}
+async function applySavedBlogSettings(){
+  const saved=await getSavedBlogSettings();
+  for(const key of ["siteName","siteDescription","siteIntro"]){if(typeof saved[key]==="string") OPT[key]=saved[key];}
+}
+
 async function getThemeHtml(template_path){
   template_path=template_path.replace(".html","")
   if(template_path==="index") return minimalIndexTemplate();

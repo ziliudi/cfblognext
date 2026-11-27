@@ -1457,63 +1457,63 @@ async function getThemeHtml(template_path){
   if(template_path==="index") return minimalIndexTemplate();
   let html = await (await fetch(OPT.themeURL+template_path+".html",{cf:{cacheTtl:600}})).text();
   
-  // 后台采用所见即所得富文本编辑器（TinyMCE），不再加载 Markdown 编辑器。
+  // 后台文章编辑器：使用浏览器原生 contenteditable，完全替换 Editor.md。
   if(template_path==="admin/index" || template_path==="admin/edit"){
-    // 强制隐藏主题自带的 Editor.md 外观；正文区域由下方 TinyMCE 接管。
-    html=html.replace("</head>", '<style>.editormd,.editormd-toolbar,.editormd-fullscreen,.editormd-preview,.editormd-dialog{display:none!important}#content{width:100%;min-height:420px}</style></head>');
-
     html=html.replace(/<link[^>]+editormd\.css[^>]*>/gi,"");
-    html=html.replace(/<script[^>]+editor\.md@[^>]+><\/script>/gi,"");
-    html=html.replace(/var mdEditor = editormd\("content", \{[\s\S]*?\n\s*\}\);/, "window.cfblogInitialHtml = (typeof articleJson !== 'undefined' && articleJson && (articleJson.contentHtml || articleJson.contentMD)) || '';");
-
-    const richTextEditorScript = `<script>
+    html=html.replace(/<script[^>]+editor\.md@[^>]*><\/script>/gi,"");
+    html=html.replace(/var mdEditor = editormd\("content", \{[\s\S]*?\n\s*\}\);/,"");
+    const editorScript = `<style>
+      #cfblog-editor{border:1px solid #ccc;border-radius:4px;background:#fff;margin:16px 0 24px;width:100%;overflow:hidden}
+      #cfblog-editor-toolbar{display:flex;flex-wrap:wrap;gap:5px;padding:8px;border-bottom:1px solid #ddd;background:#f7f7f7}
+      #cfblog-editor-toolbar button{min-width:36px;height:36px;padding:5px 9px;border:1px solid #ccc;border-radius:4px;background:#fff;color:#333;font-size:15px}
+      #cfblog-editor-area{display:block;min-height:420px;padding:14px;outline:none;font:16px/1.8 -apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;overflow-wrap:anywhere}
+      #cfblog-editor-area:empty:before{content:"在这里输入文章正文…";color:#999}
+      #cfblog-editor-area img{max-width:100%;height:auto}
+      #cfblog-editor-area table{border-collapse:collapse;max-width:100%}
+      #cfblog-editor-area td,#cfblog-editor-area th{border:1px solid #ccc;padding:6px}
+      @media(max-width:600px){#cfblog-editor-area{min-height:55vh;padding:10px}#cfblog-editor-toolbar button{min-width:32px;padding:4px 7px}}
+    </style>
+    <script>
     (function(){
-      function mountRichTextEditor(){
-        const form=document.getElementById("addNewForm")||document.getElementById("editForm");
-        const box=document.getElementById("content");
-        if(!form||!box||box.dataset.richEditorReady==="1") return;
-        box.dataset.richEditorReady="1";
-        box.innerHTML='<textarea id="cfblog-rich-editor" aria-label="文章正文"></textarea><textarea id="cfblog-content-md" name="content-markdown-doc" hidden></textarea><textarea id="cfblog-content-html" name="content-html-code" hidden></textarea>';
-        const editor=document.getElementById("cfblog-rich-editor");
-        const mdField=document.getElementById("cfblog-content-md");
-        const htmlField=document.getElementById("cfblog-content-html");
-        const initial=String(window.cfblogInitialHtml||"");
-        const initialHtml=/<[a-z][\s\S]*>/i.test(initial)?initial:initial.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>");
-        const load=function(){
-          if(!window.tinymce){const script=document.createElement("script");script.src="https://cdn.jsdelivr.net/npm/tinymce@7.9.1/tinymce.min.js";script.referrerPolicy="origin";script.onload=init;script.onerror=function(){editor.style.display="block";editor.style.width="100%";editor.style.minHeight="420px";editor.value=initial.replace(/<[^>]*>/g," ");alert("富文本编辑器加载失败，已显示普通文字输入框，请检查网络后刷新。");};document.head.appendChild(script);}else init();
-        };
-        const init=function(){
-          tinymce.init({
-            selector:"#cfblog-rich-editor",height:560,menubar:"edit view insert format tools table",
-            plugins:"lists link image media table code wordcount",
-            toolbar:"undo redo | blocks fontsize | bold italic underline | forecolor backcolor | alignleft aligncenter alignright | bullist numlist | link image media table | removeformat",
-            language:"zh_CN",language_url:"https://cdn.jsdelivr.net/npm/tinymce@7.9.1/langs/zh_CN.js",
-            branding:false,promotion:false,menubar:true,toolbar_mode:"sliding",
-            content_style:"body{font-family:Arial,'Microsoft YaHei',sans-serif;font-size:16px;line-height:1.8;padding:12px}",
-            setup:function(ed){
-              ed.on("init",function(){if(initialHtml)ed.setContent(initialHtml);sync();});
-              ed.on("change keyup undo redo SetContent",sync);
-            }
-          });
-        };
-        const sync=function(){
-          if(!window.tinymce) return;
-          const ed=tinymce.get("cfblog-rich-editor");
-          if(!ed) return;
-          const html=ed.getContent();
-          htmlField.value=html;
-          mdField.value=ed.getContent({format:"text"}).trim()||html.replace(/<[^>]*>/g," ").trim();
-        };
-        form.addEventListener("submit",sync,true);
-        document.addEventListener("click",function(event){if(event.target.closest("#btn_saveAddNew,#btn_saveEdit,#btn_save"))sync();},true);
-        const save=form.querySelector("#btn_saveAddNew,#btn_saveEdit,#btn_save");
-        if(save) save.addEventListener("click",sync,true);
-        load();
+      function mount(){
+        var form=document.getElementById("addNewForm")||document.getElementById("editForm");
+        var old=document.getElementById("content");
+        if(!form||!old||document.getElementById("cfblog-editor"))return;
+        var initial="";
+        if(typeof articleJson!=="undefined"&&articleJson)initial=articleJson.contentHtml||articleJson.contentMD||"";
+        if(!initial&&window.cfblogInitialHtml)initial=window.cfblogInitialHtml;
+        var editor=document.createElement("section");editor.id="cfblog-editor";
+        editor.innerHTML=`<div id="cfblog-editor-toolbar" role="toolbar" aria-label="文字编辑工具栏">
+          <button type="button" data-cmd="undo" title="撤销">↶</button><button type="button" data-cmd="redo" title="重做">↷</button>
+          <button type="button" data-cmd="bold" title="加粗"><b>B</b></button><button type="button" data-cmd="italic" title="斜体"><i>I</i></button><button type="button" data-cmd="underline" title="下划线"><u>U</u></button>
+          <button type="button" data-block="h2">标题</button><button type="button" data-block="p">正文</button>
+          <button type="button" data-cmd="insertUnorderedList">• 列表</button><button type="button" data-cmd="insertOrderedList">1. 列表</button>
+          <button type="button" data-cmd="justifyLeft">左对齐</button><button type="button" data-cmd="justifyCenter">居中</button><button type="button" data-cmd="justifyRight">右对齐</button>
+          <button type="button" data-action="link">链接</button><button type="button" data-action="image">图片</button><button type="button" data-action="quote">引用</button><button type="button" data-action="clear">清除格式</button>
+        </div><div id="cfblog-editor-area" contenteditable="true" role="textbox" aria-label="文章正文" aria-multiline="true"></div>`;
+        var area=editor.querySelector("#cfblog-editor-area");
+        var md=document.createElement("textarea");md.name="content-markdown-doc";md.hidden=true;
+        var htmlField=document.createElement("textarea");htmlField.name="content-html-code";htmlField.hidden=true;
+        old.replaceWith(editor);form.appendChild(md);form.appendChild(htmlField);
+        if(initial){if(/<\/?[a-z][\s\S]*>/i.test(initial))area.innerHTML=initial;else area.innerHTML=initial.split(/\r?\n/).map(function(line){return "<p>"+line.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")+"</p>";}).join("");}
+        function sync(){htmlField.value=area.innerHTML;md.value=area.innerText||area.textContent||"";}
+        editor.querySelector("#cfblog-editor-toolbar").addEventListener("click",function(ev){
+          var btn=ev.target.closest("button");if(!btn)return;area.focus();
+          if(btn.dataset.cmd)document.execCommand(btn.dataset.cmd,false,null);
+          else if(btn.dataset.block)document.execCommand("formatBlock",false,btn.dataset.block);
+          else if(btn.dataset.action==="link"){var u=prompt("请输入链接地址");if(u)document.execCommand("createLink",false,u);}
+          else if(btn.dataset.action==="image"){var u=prompt("请输入图片地址");if(u)document.execCommand("insertImage",false,u);}
+          else if(btn.dataset.action==="quote")document.execCommand("formatBlock",false,"blockquote");
+          else if(btn.dataset.action==="clear")document.execCommand("removeFormat",false,null);sync();
+        });
+        area.addEventListener("input",sync);
+        function wrapSave(name){if(typeof window[name]!=="function")return;var original=window[name];window[name]=function(){sync();return original.apply(this,arguments);};}
+        wrapSave("saveAddNew");wrapSave("saveEdit");sync();
       }
-      if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",mountRichTextEditor);else mountRichTextEditor();
+      if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",mount);else mount();
     })();
     </script>`;
-    html=html.includes("</body>")?html.replace("</body>",richTextEditorScript+"</body>"):html+richTextEditorScript;
+    html=html.includes("</body>")?html.replace("</body>",editorScript+"</body>"):html+editorScript;
   }
   if("admin/index"===template_path){
     const workflowDashboard = `

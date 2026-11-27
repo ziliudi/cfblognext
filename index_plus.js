@@ -144,111 +144,65 @@ Disallow: /admin`,//robots.txt设置
       mdEditor.setToolbarHandler(mdEditor.getToolbarHandles())
     },300)
 
-    //切换为所见即所得富文本编辑器。底层仍保存 Markdown + HTML，兼容现有文章数据与主题。
+    //纯文本编辑器：不解析 Markdown，不提供富文本格式工具栏。
     (function(){
-      const loadScript = src => new Promise((resolve,reject) => {
-        const script=document.createElement("script");
-        script.src=src;
-        script.onload=resolve;
-        script.onerror=reject;
-        document.head.appendChild(script);
-      });
-      const addStyle = href => {
-        const link=document.createElement("link");
-        link.rel="stylesheet";
-        link.href=href;
-        document.head.appendChild(link);
+      const contentBox=document.getElementById("content");
+      const form=document.getElementById("editForm") || document.getElementById("addNewForm");
+      if(!contentBox || !form) return;
+
+      const findOrCreateField=function(name){
+        let field=form.querySelector('textarea[name="'+name+'"]');
+        if(!field){
+          field=document.createElement("textarea");
+          field.name=name;
+          field.style.display="none";
+          form.appendChild(field);
+        }
+        return field;
       };
-      addStyle("https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css");
-      Promise.all([
-        loadScript("https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"),
-        loadScript("https://cdn.jsdelivr.net/npm/turndown@7.2.0/dist/turndown.js")
-      ]).then(function(){
-        const contentBox=document.getElementById("content");
-        if(!contentBox || !window.Quill || !window.TurndownService) return;
-        const form=document.getElementById("editForm") || document.getElementById("addNewForm");
-        const findOrCreateField=(name)=>{
-          let field=document.querySelector('textarea[name="'+name+'"]');
-          if(!field){
-            field=document.createElement("textarea");
-            field.name=name;
-            field.style.display="none";
-            (form || contentBox).appendChild(field);
-          }
-          return field;
-        };
-        const markdownField=findOrCreateField("content-markdown-doc");
-        const htmlField=findOrCreateField("content-html-code");
-        const richHost=document.createElement("div");
-        richHost.id="cfblog-rich-editor";
-        richHost.style.cssText="height:560px;background:#fff;margin:12px 0 24px;";
-        contentBox.parentNode.insertBefore(richHost,contentBox.nextSibling);
-        contentBox.style.display="none";
+      const markdownField=findOrCreateField("content-markdown-doc");
+      const htmlField=findOrCreateField("content-html-code");
 
-        const quill=new Quill(richHost,{
-          theme:"snow",
-          modules:{toolbar:[
-            [{header:[1,2,3,4,false]}],
-            ["bold","italic","underline","strike"],
-            [{color:[]},{background:[]}],
-            [{list:"ordered"},{list:"bullet"}],
-            [{indent:"-1"},{indent:"+1"}],
-            ["blockquote","code-block"],
-            ["link"],
-            ["clean"]
-          ]}
-        });
-        const article=(typeof articleJson!=="undefined" && articleJson) || window.articleJson || {};
-        const initialHtml=article.contentHtml || (window.mdEditor && typeof mdEditor.getHTML==="function" ? mdEditor.getHTML() : "");
-        if(initialHtml){
-          quill.clipboard.dangerouslyPasteHTML(initialHtml);
-        }else if(window.mdEditor && typeof mdEditor.getMarkdown==="function"){
-          // HTML 不存在时保留原 Markdown 内容，避免编辑旧文章时丢失正文。
-          markdownField.value=mdEditor.getMarkdown();
-          quill.setText(markdownField.value);
-        }
-        const turndown=new TurndownService({
-          headingStyle:"atx",
-          codeBlockStyle:"fenced",
-          bulletListMarker:"-"
-        });
-        const syncContent=function(){
-          const html=quill.root.innerHTML;
-          htmlField.value=html;
-          markdownField.value=turndown.turndown(html);
-        };
-        quill.on("text-change",syncContent);
-        syncContent();
-        window.cfblogRichEditor=quill;
-        window.cfblogSyncRichEditor=syncContent;
+      // 清除 Editor.md 生成的 Markdown 编辑区和工具栏，换成普通 textarea。
+      contentBox.innerHTML="";
+      const plainEditor=document.createElement("textarea");
+      plainEditor.id="cfblog-plain-editor";
+      plainEditor.className="form-control";
+      plainEditor.setAttribute("aria-label","文章正文");
+      plainEditor.placeholder="在这里输入文章正文，支持普通文本和换行；不会解析 Markdown。";
+      plainEditor.style.cssText="display:block;width:100%;min-height:560px;margin:12px 0 24px;padding:12px;line-height:1.8;font-size:16px;resize:vertical;white-space:pre-wrap;";
+      contentBox.appendChild(plainEditor);
 
-        // 保存前同步富文本内容到原有表单字段，后端接口无需改变。
-        if(typeof window.saveEdit==="function" && !window.saveEdit._richWrapped){
-          const originalSaveEdit=window.saveEdit;
-          const wrappedSaveEdit=function(){
-            syncContent();
-            return originalSaveEdit.apply(this,arguments);
-          };
-          wrappedSaveEdit._richWrapped=true;
-          window.saveEdit=wrappedSaveEdit;
-        }
-        if(typeof window.saveAddNew==="function" && !window.saveAddNew._richWrapped){
-          const originalSaveAddNew=window.saveAddNew;
-          const wrappedSaveAddNew=function(){
-            syncContent();
-            return originalSaveAddNew.apply(this,arguments);
-          };
-          wrappedSaveAddNew._richWrapped=true;
-          window.saveAddNew=wrappedSaveAddNew;
-        }
-        const saveButton=document.querySelector("#btn_saveEdit, #btn_saveAddNew, #btn_save");
-        if(saveButton){
-          saveButton.addEventListener("click",syncContent,true);
-        }
-      }).catch(function(error){
-        console.error("富文本编辑器加载失败，已保留原 Markdown 编辑器。",error);
-        alert("富文本编辑器加载失败，请检查网络后刷新页面；原 Markdown 编辑器仍可使用。");
-      });
+      const article=(typeof articleJson!=="undefined" && articleJson) || window.articleJson || {};
+      const htmlToPlainText=function(html){
+        const holder=document.createElement("div");
+        holder.innerHTML=String(html||"")
+          .replace(/<br\\s*\\/?\\s*>/gi,"\\n")
+          .replace(/<\\/(p|div|li|h[1-6]|blockquote|pre)>/gi,"\\n");
+        return (holder.textContent||holder.innerText||"").replace(/\\n{3,}/g,"\\n\\n").trim();
+      };
+      if(article.contentPlain!==undefined && article.contentPlain!==null){
+        plainEditor.value=String(article.contentPlain);
+      }else if(article.contentHtml){
+        plainEditor.value=htmlToPlainText(article.contentHtml);
+      }else{
+        // 旧文章没有 HTML 时，将原 Markdown 源码作为普通文本保留，不执行解析。
+        plainEditor.value=String(article.contentMD||"");
+      }
+
+      const syncContent=function(){
+        const text=plainEditor.value;
+        const escaped=text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+        markdownField.value=text;
+        htmlField.value='<div class="plain-text-content" style="white-space:pre-wrap">'+escaped+'</div>';
+      };
+      plainEditor.addEventListener("input",syncContent);
+      syncContent();
+      window.cfblogPlainEditor=plainEditor;
+      window.cfblogSyncPlainEditor=syncContent;
+      form.addEventListener("submit",syncContent,true);
+      const saveButton=document.querySelector("#btn_saveEdit, #btn_saveAddNew, #btn_save");
+      if(saveButton) saveButton.addEventListener("click",syncContent,true);
     })();
 
     //文章工作流：草稿 / 立即发布 / 定时发布
@@ -1175,7 +1129,7 @@ async function handle_admin(request){
       && String(img).length<=2048 && String(link).length<=200
       && contentMD.length<=1000000 && contentHtml.length<=1000000
       && category.length<=30 && tags.length<=50
-      && (status==="draft" || (createDate.length>0 && category.length>0 && contentMD.length>0 && contentHtml.length>0))
+      && (status==="draft" || (createDate.length>0 && contentMD.length>0 && contentHtml.length>0))
       && (status!=="scheduled" || (Number.isFinite(scheduleTime) && scheduleTime>Date.now()))){
 
       id=await generateId(),
@@ -1284,7 +1238,7 @@ async function handle_admin(request){
       && img.length<=2048 && link.length<=200
       && contentMD.length<=1000000 && contentHtml.length<=1000000
       && category.length<=30 && tags.length<=50
-      && (status==="draft" || (createDate.length>0 && category.length>0 && contentMD.length>0 && contentHtml.length>0))
+      && (status==="draft" || (createDate.length>0 && contentMD.length>0 && contentHtml.length>0))
       && (status!=="scheduled" || (Number.isFinite(scheduleTime) && scheduleTime>Date.now()))
       && await getArticle(id)){
           

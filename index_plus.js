@@ -1516,15 +1516,59 @@ async function getThemeHtml(template_path){
   if(template_path==="index") return minimalIndexTemplate();
   let html = await (await fetch(OPT.themeURL+template_path+".html",{cf:{cacheTtl:600}})).text();
   
-  //后台首页和文章编辑页都注入编辑器增强脚本。
+  // 后台采用所见即所得富文本编辑器（TinyMCE），不再加载 Markdown 编辑器。
   if(template_path==="admin/index" || template_path==="admin/edit"){
-      const marker="$('#WidgetCategory').val(JSON.stringify(categoryJson))";
-      if(html.includes(marker)){
-        html=html.replace(marker,OPT.editor_page_scripts+marker);
-      }else if(template_path==="admin/edit"){
-        const fallbackScript="<script>$(function(){"+OPT.editor_page_scripts+"});</script>";
-        html=html.includes("</body>")?html.replace("</body>",fallbackScript+"</body>"):html+fallbackScript;
+    html=html.replace(/<link[^>]+editormd\\.css[^>]*>/gi,"");
+    html=html.replace(/<script[^>]+editor\\.md@[^>]+><\\/script>/gi,"");
+    html=html.replace(/var mdEditor = editormd\\("content", \\{[\\s\\S]*?\\n\\s*\\}\\);/, "window.cfblogInitialHtml = (typeof articleJson !== 'undefined' && articleJson && (articleJson.contentHtml || articleJson.contentMD)) || '';");
+
+    const richTextEditorScript = `<script>
+    (function(){
+      function mountRichTextEditor(){
+        const form=document.getElementById("addNewForm")||document.getElementById("editForm");
+        const box=document.getElementById("content");
+        if(!form||!box||box.dataset.richEditorReady==="1") return;
+        box.dataset.richEditorReady="1";
+        box.innerHTML='<textarea id="cfblog-rich-editor" aria-label="文章正文"></textarea><textarea id="cfblog-content-md" name="content-markdown-doc" hidden></textarea><textarea id="cfblog-content-html" name="content-html-code" hidden></textarea>';
+        const editor=document.getElementById("cfblog-rich-editor");
+        const mdField=document.getElementById("cfblog-content-md");
+        const htmlField=document.getElementById("cfblog-content-html");
+        const initial=String(window.cfblogInitialHtml||"");
+        const initialHtml=/<[a-z][\\s\\S]*>/i.test(initial)?initial:initial.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\\n/g,"<br>");
+        const load=function(){
+          if(!window.tinymce){const script=document.createElement("script");script.src="https://cdn.jsdelivr.net/npm/tinymce@7.9.1/tinymce.min.js";script.referrerPolicy="origin";script.onload=init;script.onerror=function(){editor.style.display="block";editor.style.width="100%";editor.style.minHeight="420px";editor.value=initial.replace(/<[^>]*>/g," ");alert("富文本编辑器加载失败，已显示普通文字输入框，请检查网络后刷新。");};document.head.appendChild(script);}else init();
+        };
+        const init=function(){
+          tinymce.init({
+            selector:"#cfblog-rich-editor",height:560,menubar:"edit view insert format tools table",
+            plugins:"lists link image media table code wordcount",
+            toolbar:"undo redo | blocks fontsize | bold italic underline | forecolor backcolor | alignleft aligncenter alignright | bullist numlist | link image media table | removeformat",
+            language:"zh_CN",language_url:"https://cdn.jsdelivr.net/npm/tinymce@7.9.1/langs/zh_CN.js",
+            branding:false,promotion:false,menubar:true,toolbar_mode:"sliding",
+            content_style:"body{font-family:Arial,'Microsoft YaHei',sans-serif;font-size:16px;line-height:1.8;padding:12px}",
+            setup:function(ed){
+              ed.on("init",function(){if(initialHtml)ed.setContent(initialHtml);sync();});
+              ed.on("change keyup undo redo SetContent",sync);
+            }
+          });
+        };
+        const sync=function(){
+          if(!window.tinymce) return;
+          const ed=tinymce.get("cfblog-rich-editor");
+          if(!ed) return;
+          const html=ed.getContent();
+          htmlField.value=html;
+          mdField.value=ed.getContent({format:"text"}).trim()||html.replace(/<[^>]*>/g," ").trim();
+        };
+        form.addEventListener("submit",sync,true);
+        const save=form.querySelector("#btn_saveAddNew,#btn_saveEdit,#btn_save");
+        if(save) save.addEventListener("click",sync,true);
+        load();
       }
+      if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",mountRichTextEditor);else mountRichTextEditor();
+    })();
+    </script>`;
+    html=html.includes("</body>")?html.replace("</body>",richTextEditorScript+"</body>"):html+richTextEditorScript;
   }
   if("admin/index"===template_path){
     const workflowDashboard = `

@@ -144,65 +144,69 @@ Disallow: /admin`,//robots.txt设置
       mdEditor.setToolbarHandler(mdEditor.getToolbarHandles())
     },300)
 
-    //纯文本编辑器：不解析 Markdown，不提供富文本格式工具栏。
+    // Word 风格所见即所得编辑器（TinyMCE），正文以 HTML 保存，兼容原有文章字段。
     (function(){
       const contentBox=document.getElementById("content");
       const form=document.getElementById("editForm") || document.getElementById("addNewForm");
       if(!contentBox || !form) return;
-
-      const findOrCreateField=function(name){
-        let field=form.querySelector('textarea[name="'+name+'"]');
-        if(!field){
-          field=document.createElement("textarea");
-          field.name=name;
-          field.style.display="none";
-          form.appendChild(field);
-        }
-        return field;
+      const field=function(name){
+        let el=form.querySelector('textarea[name="'+name+'"]');
+        if(!el){el=document.createElement("textarea");el.name=name;el.style.display="none";form.appendChild(el);}
+        return el;
       };
-      const markdownField=findOrCreateField("content-markdown-doc");
-      const htmlField=findOrCreateField("content-html-code");
-
-      // 清除 Editor.md 生成的 Markdown 编辑区和工具栏，换成普通 textarea。
-      contentBox.innerHTML="";
-      const plainEditor=document.createElement("textarea");
-      plainEditor.id="cfblog-plain-editor";
-      plainEditor.className="form-control";
-      plainEditor.setAttribute("aria-label","文章正文");
-      plainEditor.placeholder="在这里输入文章正文，支持普通文本和换行；不会解析 Markdown。";
-      plainEditor.style.cssText="display:block;width:100%;min-height:560px;margin:12px 0 24px;padding:12px;line-height:1.8;font-size:16px;resize:vertical;white-space:pre-wrap;";
-      contentBox.appendChild(plainEditor);
-
+      const markdownField=field("content-markdown-doc");
+      const htmlField=field("content-html-code");
       const article=(typeof articleJson!=="undefined" && articleJson) || window.articleJson || {};
-      const htmlToPlainText=function(html){
+      const initialHtml=article.contentHtml || "";
+      contentBox.innerHTML="";
+      const textarea=document.createElement("textarea");
+      textarea.id="cfblog-word-editor";
+      textarea.setAttribute("aria-label","文章正文编辑器");
+      contentBox.appendChild(textarea);
+      const sync=function(){
+        const ed=window.tinymce && window.tinymce.get("cfblog-word-editor");
+        if(!ed) return;
+        const html=ed.getContent();
+        htmlField.value=html;
         const holder=document.createElement("div");
-        holder.innerHTML=String(html||"")
-          .replace(/<br\\s*\\/?\\s*>/gi,"\\n")
-          .replace(/<\\/(p|div|li|h[1-6]|blockquote|pre)>/gi,"\\n");
-        return (holder.textContent||holder.innerText||"").replace(/\\n{3,}/g,"\\n\\n").trim();
+        holder.innerHTML=html;
+        markdownField.value=holder.innerText || holder.textContent || "";
       };
-      if(article.contentPlain!==undefined && article.contentPlain!==null){
-        plainEditor.value=String(article.contentPlain);
-      }else if(article.contentHtml){
-        plainEditor.value=htmlToPlainText(article.contentHtml);
-      }else{
-        // 旧文章没有 HTML 时，将原 Markdown 源码作为普通文本保留，不执行解析。
-        plainEditor.value=String(article.contentMD||"");
-      }
-
-      const syncContent=function(){
-        const text=plainEditor.value;
-        const escaped=text.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
-        markdownField.value=text;
-        htmlField.value='<div class="plain-text-content" style="white-space:pre-wrap">'+escaped+'</div>';
+      const initEditor=function(){
+        window.tinymce.init({
+          target:textarea,height:620,menubar:"file edit view insert format tools table",
+          plugins:"advlist autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table help wordcount",
+          toolbar:"undo redo | blocks fontfamily fontsize | bold italic underline strikethrough forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image media table blockquote | removeformat | code preview fullscreen",
+          toolbar_mode:"sliding",branding:false,promotion:false,language:"zh_CN",
+          language_url:"https://cdn.jsdelivr.net/npm/tinymce@7.9.1/langs/zh_CN.js",
+          content_style:"body{font-family:Arial,'Microsoft YaHei',sans-serif;font-size:16px;line-height:1.8;padding:12px} img{max-width:100%;height:auto} table{border-collapse:collapse}",
+          paste_data_images:true,automatic_uploads:false,
+          setup:function(ed){
+            ed.on("init",function(){
+              if(initialHtml) ed.setContent(initialHtml);
+              else if(article.contentMD){
+                const escaped=String(article.contentMD).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>");
+                ed.setContent("<p>"+escaped+"</p>");
+              }
+              sync();
+            });
+            ed.on("change keyup undo redo SetContent",sync);
+          }
+        });
       };
-      plainEditor.addEventListener("input",syncContent);
-      syncContent();
-      window.cfblogPlainEditor=plainEditor;
-      window.cfblogSyncPlainEditor=syncContent;
-      form.addEventListener("submit",syncContent,true);
+      const loadEditor=function(){
+        if(window.tinymce){initEditor();return;}
+        const script=document.createElement("script");
+        script.src="https://cdn.jsdelivr.net/npm/tinymce@7.9.1/tinymce.min.js";
+        script.referrerPolicy="origin";script.onload=initEditor;
+        script.onerror=function(){alert("Word 风格编辑器加载失败，请检查网络连接后刷新页面。");};
+        document.head.appendChild(script);
+      };
+      window.cfblogSyncWordEditor=sync;
+      form.addEventListener("submit",sync,true);
       const saveButton=document.querySelector("#btn_saveEdit, #btn_saveAddNew, #btn_save");
-      if(saveButton) saveButton.addEventListener("click",syncContent,true);
+      if(saveButton) saveButton.addEventListener("click",sync,true);
+      loadEditor();
     })();
 
     //文章工作流：草稿 / 立即发布 / 定时发布

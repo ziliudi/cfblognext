@@ -144,69 +144,29 @@ Disallow: /admin`,//robots.txt设置
       mdEditor.setToolbarHandler(mdEditor.getToolbarHandles())
     },300)
 
-    // Word 风格所见即所得编辑器（TinyMCE），正文以 HTML 保存，兼容原有文章字段。
+    // 正文编辑器使用主题原生 Editor.md。不要清空 #content，
+    // 否则会销毁主题已初始化的 Markdown 编辑器并导致正文区域消失。
     (function(){
-      const contentBox=document.getElementById("content");
-      const form=document.getElementById("editForm") || document.getElementById("addNewForm");
-      if(!contentBox || !form) return;
-      const field=function(name){
-        let el=form.querySelector('textarea[name="'+name+'"]');
-        if(!el){el=document.createElement("textarea");el.name=name;el.style.display="none";form.appendChild(el);}
-        return el;
+      const form=document.getElementById("addNewForm") || document.getElementById("editForm");
+      const box=document.getElementById("content");
+      if(!form || !box) return;
+      const source=box.querySelector("textarea");
+      if(source){
+        source.name="content-markdown-doc";
+        source.style.display="";
+        source.style.width="100%";
+        source.style.minHeight="420px";
+        source.setAttribute("aria-label","文章正文（Markdown）");
+      }
+      const save=function(){
+        if(window.mdEditor && typeof window.mdEditor.getMarkdown==="function" && source){
+          source.value=window.mdEditor.getMarkdown();
+        }
       };
-      const markdownField=field("content-markdown-doc");
-      const htmlField=field("content-html-code");
-      const article=(typeof articleJson!=="undefined" && articleJson) || window.articleJson || {};
-      const initialHtml=article.contentHtml || "";
-      contentBox.innerHTML="";
-      const textarea=document.createElement("textarea");
-      textarea.id="cfblog-word-editor";
-      textarea.setAttribute("aria-label","文章正文编辑器");
-      contentBox.appendChild(textarea);
-      const sync=function(){
-        const ed=window.tinymce && window.tinymce.get("cfblog-word-editor");
-        if(!ed) return;
-        const html=ed.getContent();
-        htmlField.value=html;
-        const holder=document.createElement("div");
-        holder.innerHTML=html;
-        markdownField.value=holder.innerText || holder.textContent || "";
-      };
-      const initEditor=function(){
-        window.tinymce.init({
-          target:textarea,height:620,menubar:"file edit view insert format tools table",
-          plugins:"advlist autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table help wordcount",
-          toolbar:"undo redo | blocks fontfamily fontsize | bold italic underline strikethrough forecolor backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | link image media table blockquote | removeformat | code preview fullscreen",
-          toolbar_mode:"sliding",branding:false,promotion:false,language:"zh_CN",
-          language_url:"https://cdn.jsdelivr.net/npm/tinymce@7.9.1/langs/zh_CN.js",
-          content_style:"body{font-family:Arial,'Microsoft YaHei',sans-serif;font-size:16px;line-height:1.8;padding:12px} img{max-width:100%;height:auto} table{border-collapse:collapse}",
-          paste_data_images:true,automatic_uploads:false,
-          setup:function(ed){
-            ed.on("init",function(){
-              if(initialHtml) ed.setContent(initialHtml);
-              else if(article.contentMD){
-                const escaped=String(article.contentMD).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>");
-                ed.setContent("<p>"+escaped+"</p>");
-              }
-              sync();
-            });
-            ed.on("change keyup undo redo SetContent",sync);
-          }
-        });
-      };
-      const loadEditor=function(){
-        if(window.tinymce){initEditor();return;}
-        const script=document.createElement("script");
-        script.src="https://cdn.jsdelivr.net/npm/tinymce@7.9.1/tinymce.min.js";
-        script.referrerPolicy="origin";script.onload=initEditor;
-        script.onerror=function(){alert("Word 风格编辑器加载失败，请检查网络连接后刷新页面。");};
-        document.head.appendChild(script);
-      };
-      window.cfblogSyncWordEditor=sync;
-      form.addEventListener("submit",sync,true);
-      const saveButton=document.querySelector("#btn_saveEdit, #btn_saveAddNew, #btn_save");
-      if(saveButton) saveButton.addEventListener("click",sync,true);
-      loadEditor();
+      form.addEventListener("submit",save,true);
+      const button=document.querySelector("#btn_saveAddNew, #btn_saveEdit, #btn_save");
+      if(button) button.addEventListener("click",save,true);
+      window.cfblogSyncWordEditor=save;
     })();
 
     //文章工作流：草稿 / 立即发布 / 定时发布

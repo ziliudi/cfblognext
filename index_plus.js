@@ -1666,7 +1666,7 @@ async function getThemeHtml(template_path, articleId=null){
     const saveFunctionStart=html.indexOf("function saveAddNew()");
     if(saveFunctionStart>=0){
       const before=html.slice(0,saveFunctionStart),after=html.slice(saveFunctionStart);
-      const validation=/if\\s*\\([\\s\\S]*?\\)\\s*\\{\\s*alert\\("信息不全"\\);\\s*return;\\s*\\}/;
+      const validation=/if\s*\([\s\S]*?\)\s*\{\s*alert\("信息不全"\);\s*return;\s*\}/;
       html=before+after.replace(validation,'if($("#title").val()==="" || $("#title").val()==null){alert("请填写文章标题");return;}');
     }
     html=html.replace("|| $('#createDate').val() == \"\" || $('#createDate').val() == null","|| ($('#cfblog-status').val() !== \"draft\" && ($('#createDate').val() == \"\" || $('#createDate').val() == null))");

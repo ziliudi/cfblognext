@@ -1014,19 +1014,19 @@ async function handle_admin(request, workerEnv){
   
   // 导出 Google Blogger 可识别的 Atom feed。
   if("exportBlogger"===paths[1]){
-    const articles=await getArticlesList();
+    const articles=await getAllArticlesList();
     const xe=value=>String(value==null?"":value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;");
     const date=value=>{const d=new Date(value||Date.now());return Number.isFinite(d.getTime())?d.toISOString():new Date().toISOString();};
-    const base="https://"+OPT.siteDomain+"/";
-    let xml='<?xml version="1.0" encoding="UTF-8"?>\\n<feed xmlns="http://www.w3.org/2005/Atom">';
+    const base=new URL(request.url).origin+"/";
+    let xml='<?xml version="1.0" encoding="UTF-8"?>\\n<feed xmlns="http://www.w3.org/2005/Atom" xmlns:app="http://www.w3.org/2007/app">';
     xml+='<id>'+xe(base)+'</id><title type="text">'+xe(OPT.siteName)+'</title><updated>'+date(Date.now())+'</updated><link rel="self" type="application/atom+xml" href="'+xe(base+'feeds/posts/default')+'"/><link rel="alternate" type="text/html" href="'+xe(base)+'"/><author><name>'+xe(OPT.footerOwner||OPT.siteName)+'</name></author>';
     for(const item of articles){
       const a=await getArticle(item.id);if(!a)continue;
       const published=date(String(a.createDate||"").replace(" ","T"));
       const updated=date(a.modify_timestamp?Number(a.modify_timestamp):published);
       const link=base+"article/"+encodeURIComponent(a.id)+"/"+encodeURIComponent(a.link||"")+".html";
-      xml+='<entry><id>'+xe(link)+'</id><published>'+published+'</published><updated>'+updated+'</updated><title type="text">'+xe(a.title||"")+'</title><content type="html">'+xe(a.contentHtml||a.contentMD||"")+'</content><link rel="alternate" type="text/html" href="'+xe(link)+'"/>';
-      for(const v of (Array.isArray(a.category)?a.category:(a.category?[a.category]:[])))if(v)xml+='<category term="'+xe(v)+'"/>';
+      xml+='<entry><id>'+xe(link)+'</id><published>'+published+'</published><updated>'+updated+'</updated><title type="text">'+xe(a.title||"")+'</title><content type="html">'+xe(a.contentHtml||a.contentMD||"")+'</content><link rel="alternate" type="text/html" href="'+xe(link)+'"/>';if(a.status==="draft"||a.status==="scheduled"||a.hidden)xml+='<app:control><app:draft>yes</app:draft></app:control>';
+      for(const v of (Array.isArray(a.category)?a.category:(a.category?[a.category]:[])))if(v)xml+='<category scheme="http://www.blogger.com/atom/ns#" term="'+xe(v)+'"/>';
       for(const v of (Array.isArray(a.tags)?a.tags:(a.tags?[a.tags]:[])))if(v)xml+='<category term="'+xe(v)+'"/>';
       xml+='</entry>';
     }

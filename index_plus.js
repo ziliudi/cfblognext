@@ -1,16 +1,16 @@
+import { env } from "cloudflare:workers";
+
 /**------【①.谋而后定：配置区】-----**/
 
 'use strict';
 const ACCOUNT = { //账号相关，安全性更高
 
   // 部署前必须设置为仅自己知道的强凭据；留空或保留占位值时后台认证会拒绝所有请求。
-  "user" : "houtai", //博客后台用户名
-  "password" : "adminmima19598", //建议使用至少 20 位随机密码
   "third_token" : "", //可选的只读导出 Token；不使用时保持为空
   "cacheZoneId":"935xxxxxxxxxxxx",//区域 ID
   "cacheToken":"AQxxxxxxxx",//API token
 
-  "kv_var": this['CFBLOG'],//workers绑定kv时用的变量名
+  "kv_var": env.CFBLOG,//Workers KV 绑定
 }
 
 const OPT = { //网站配置
@@ -291,7 +291,7 @@ Disallow: /admin`,//robots.txt设置
 //---对部分配置进行处理---
 {
   //CFBLOG 通用变量
-  this.CFBLOG = ACCOUNT.kv_var;
+  const CFBLOG = ACCOUNT.kv_var;
   
   //默认为非私密博客
   if(null==OPT.privateBlog){
@@ -312,16 +312,15 @@ Disallow: /admin`,//robots.txt设置
 
 /**------【②.猎杀时刻：请求处理入口】-----**/
 
-//定时发布：Cloudflare Worker 需在 Dashboard 配置 Cron Trigger（建议每分钟执行一次）。
-addEventListener("scheduled",event=>{
-  event.waitUntil(publishScheduledArticles());
-});
-
-//监听请求
-addEventListener("fetch",event=>{
-  //处理请求
-  event.respondWith(handlerRequest(event))
-});
+// Module Worker 入口：网页请求与 Cron 定时任务共用同一 Worker。
+export default {
+  fetch(request, env, ctx) {
+    return handlerRequest({ request });
+  },
+  scheduled(controller, env, ctx) {
+    ctx.waitUntil(publishScheduledArticles());
+  }
+};
 
 //将到期的定时文章转为已发布，并刷新文章索引及 CDN 缓存。
 async function publishScheduledArticles(){
@@ -1407,8 +1406,8 @@ function parseBasicAuth(request){
         const pwd=decoded.slice(separator+1);
         // 不要记录用户名/密码，避免凭据进入 Workers 日志。
         // 拒绝仓库示例凭据及空凭据，避免新部署沿用公开默认密码。
-        const configuredUser=String(ACCOUNT.user||"");
-        const configuredPassword=String(ACCOUNT.password||"");
+        const configuredUser=String(env.CFBLOG_ADMIN_USER||"");
+        const configuredPassword=String(env.CFBLOG_ADMIN_PASSWORD||"");
         if(!configuredUser || !configuredPassword ||
            configuredUser.startsWith("CHANGE_ME_") ||
            configuredPassword.startsWith("CHANGE_ME_")) return false;

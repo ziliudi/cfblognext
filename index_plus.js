@@ -1511,7 +1511,7 @@ async function getThemeHtml(template_path){
         function wrapSave(name){if(typeof window[name]!=="function")return;var original=window[name];window[name]=function(){sync();return original.apply(this,arguments);};}
         wrapSave("saveAddNew");wrapSave("saveEdit");sync();
       }
-      if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",mount);else mount();
+      if(window.jQuery)jQuery(mount);else if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",mount);else mount();
     })();
     </script>`;
     html=html.includes("</body>")?html.replace("</body>",editorScript+"</body>"):html+editorScript;

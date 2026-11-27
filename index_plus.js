@@ -901,7 +901,7 @@ async function handle_admin(request, workerEnv){
   if("edit"==paths[1]){
     let id=paths[2],
         //获取主题admin/edit源码
-        theme_html=await getThemeHtml("admin/edit"),
+        theme_html=await getThemeHtml("admin/edit", id),
         //KV中读取分类
         categoryJson=JSON.stringify(await getWidgetCategory()),
         //KV中读取文章内容
@@ -1658,7 +1658,7 @@ async function applySavedBlogSettings(){
   OPT.footerStartYear=/^\d{4}$/.test(year)&&Number(year)<=new Date().getFullYear()?year:"2024";
 }
 
-async function getThemeHtml(template_path){
+async function getThemeHtml(template_path, articleId=null){
   template_path=template_path.replace(".html","")
   if(template_path==="index") return minimalIndexTemplate();
   let html = await (await fetch(OPT.themeURL+template_path+".html",{cf:{cacheTtl:600}})).text();
@@ -1768,7 +1768,7 @@ async function getThemeHtml(template_path){
       const values=Array.isArray(item.category)?item.category:(item.category?[item.category]:[]);
       values.forEach(v=>{if(String(v||"").trim())names.add(String(v).trim());});
     }
-    const editArticle=template_path==="admin/edit"?await getArticle(paths[2]):null;
+    const editArticle=template_path==="admin/edit" && articleId ? await getArticle(articleId) : null;
     const normalizeField=value=>{
       if(Array.isArray(value))return value.map(v=>String(v||"").trim()).filter(Boolean);
       if(value==null||value==="")return [];

@@ -108,14 +108,6 @@ Disallow: /admin`,//robots.txt设置
     let searchxml=\`<a  tabindex="0"  role="button"  type="submit" id="btn_export" class="btn btn-default"  href="/admin/search.xml" >导出search.xml</a>\`
     $('form#importForm a').last().after(searchxml);//设置页面添加导出search.xml导出按钮
     
-    // 将原设置表单标记为“编辑设置”，并在同一设置页增加“博客设置”表单。
-    const settingsUi=`<h3 style="margin-top:0">编辑设置</h3><p class="text-muted">分类、菜单、友情链接及数据导入导出等原有设置。</p><hr><form id="blogSettingsForm" role="form"><h3>博客设置</h3><div class="form-group"><label for="cfblog-site-name">博客名称</label><input class="form-control" id="cfblog-site-name" name="siteName" maxlength="100" required></div><div class="form-group"><label for="cfblog-site-description">博客简介（SEO 描述）</label><textarea class="form-control" id="cfblog-site-description" name="siteDescription" rows="3" maxlength="500"></textarea></div><div class="form-group"><label for="cfblog-site-intro">自我介绍（显示在博客首页）</label><textarea class="form-control" id="cfblog-site-intro" name="siteIntro" rows="5" maxlength="2000"></textarea></div><button type="button" class="btn btn-primary" id="cfblog-save-blog-settings">保存博客设置</button></form><hr>`;
-    const configForm=html.indexOf(`<form id="configForm"`);
-    if(configForm>=0) html=html.slice(0,configForm)+settingsUi+html.slice(configForm);
-    html=html.replace(`<form id="configForm" role="form" >`,`<form id="configForm" role="form" ><h3>编辑设置</h3>`);
-    const blogSettingsJson=JSON.stringify({siteName:blogSettings.siteName||OPT.siteName,siteDescription:blogSettings.siteDescription||OPT.siteDescription,siteIntro:blogSettings.siteIntro||OPT.siteIntro}).replace(/</g,"\\u003c");
-    html=html.replace(`</body>`,`<script>(function(){const v=${blogSettingsJson};document.getElementById("cfblog-site-name").value=v.siteName||"";document.getElementById("cfblog-site-description").value=v.siteDescription||"";document.getElementById("cfblog-site-intro").value=v.siteIntro||"";document.getElementById("cfblog-save-blog-settings").addEventListener("click",function(){const data=["siteName","siteDescription","siteIntro"].map(name=>({name,value:document.querySelector("[name=\\""+name+"\\"]",document.getElementById("blogSettingsForm")).value}));fetch("/admin/saveConfig/",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}).then(async r=>{const x=await r.json();if(!r.ok||!x.rst)throw new Error(x.msg||("HTTP "+r.status));alert(x.msg);}).catch(e=>alert("保存失败："+e.message));});})();</script></body>`);
-
     // 已切换到 TinyMCE 可视化编辑器，不再调用 Editor.md API。
     window.mdEditor = null;
 
@@ -833,6 +825,13 @@ async function handle_admin(request){
     html = theme_html.replaceHtmlPara("categoryJson",JSON.stringify(categoryJson))
                     .replaceHtmlPara("menuJson",JSON.stringify(menuJson))
                     .replaceHtmlPara("linkJson",JSON.stringify(linkJson))
+    // 设置页分为“编辑设置”和“博客设置”；博客资料从 KV 读取并回填。
+    const settingsUi=`<h3 style="margin-top:0">博客设置</h3><form id="blogSettingsForm" role="form"><div class="form-group"><label for="cfblog-site-name">博客名称</label><input class="form-control" id="cfblog-site-name" name="siteName" maxlength="100" required></div><div class="form-group"><label for="cfblog-site-description">博客简介（SEO 描述）</label><textarea class="form-control" id="cfblog-site-description" name="siteDescription" rows="3" maxlength="500"></textarea></div><div class="form-group"><label for="cfblog-site-intro">自我介绍（显示在博客首页）</label><textarea class="form-control" id="cfblog-site-intro" name="siteIntro" rows="5" maxlength="2000"></textarea></div><button type="button" class="btn btn-primary" id="cfblog-save-blog-settings">保存博客设置</button></form><hr><h3>编辑设置</h3>`;
+    html=html.replace(`<form id="configForm" role="form" >`,`<form id="configForm" role="form" ><h3>编辑设置</h3>`);
+    html=html.replace(`<div class="container" >\n\t\t\t<form id="configForm"`,`<div class="container" >\n\t\t\t${settingsUi}<form id="configForm"`);
+    const blogSettingsJson=JSON.stringify({siteName:blogSettings.siteName||OPT.siteName,siteDescription:blogSettings.siteDescription||OPT.siteDescription,siteIntro:blogSettings.siteIntro||OPT.siteIntro}).replace(/</g,"\\u003c");
+    html=html.replace(`</body>`,`<script>(function(){const v=${blogSettingsJson};document.getElementById("cfblog-site-name").value=v.siteName||"";document.getElementById("cfblog-site-description").value=v.siteDescription||"";document.getElementById("cfblog-site-intro").value=v.siteIntro||"";document.getElementById("cfblog-save-blog-settings").addEventListener("click",function(){const form=document.getElementById("blogSettingsForm");const data=["siteName","siteDescription","siteIntro"].map(name=>({name,value:form.elements[name].value}));fetch("/admin/saveConfig/",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}).then(async r=>{const x=await r.json();if(!r.ok||!x.rst)throw new Error(x.msg||("HTTP "+r.status));alert(x.msg);}).catch(e=>alert("保存失败："+e.message));});})();</script></body>`);
+
                     .replaceHtmlPara("blogSettingsJson",JSON.stringify({siteName:blogSettings.siteName||OPT.siteName,siteDescription:blogSettings.siteDescription||OPT.siteDescription,siteIntro:blogSettings.siteIntro||OPT.siteIntro}))
                     
     //添加后台首页配置

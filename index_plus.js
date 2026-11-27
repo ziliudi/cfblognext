@@ -891,9 +891,6 @@ async function handle_admin(request){
         return tag.replace(/\s*\/?>$/,"").replace(/\s*\/?>$/,"") + ' value="'+String(id)+'">';
       });
     }
-    }else{
-      json = '{"msg":"Not a JSON object","rst":false}'
-    }
   }
   
   //导入

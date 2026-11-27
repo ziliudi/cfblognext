@@ -853,11 +853,16 @@ async function handle_admin(request, workerEnv){
         }
       }
     }
-    console.log(articles_all)
-    //将所有标签一次性写入到KV中，并清除缓存
-    await saveWidgetTags(JSON.stringify(tags))
-    
-    json = await purge()?'{"msg":"published ,purge Cache true","rst":true}':'{"msg":"published ,buuuuuuuuuuuut purge Cache false !!!!!!","rst":true}'
+    //同步标签索引并递增公开缓存版本；即使 Cloudflare Zone purge 未配置，也能让新页面缓存键立即切换。
+    const tagsSaved=await saveWidgetTags(JSON.stringify(tags));
+    const indexSaved=tagsSaved && await saveArticlesList(JSON.stringify(articles_all));
+    let cachePurged=false;
+    try{cachePurged=await purge();}catch(error){console.error("Cloudflare cache purge failed:",String(error&&error.message||error));}
+    json=JSON.stringify({
+      msg:!indexSaved?"发布索引更新失败":cachePurged?"发布索引更新成功，缓存清理成功":"发布索引更新成功；Cloudflare 缓存清理未成功，已通过缓存版本更新生效",
+      rst:!!indexSaved,
+      cachePurged:!!cachePurged
+    });
       
   }
 
@@ -1077,7 +1082,7 @@ async function handle_admin(request, workerEnv){
   //新建文章
   if("saveAddNew"==paths[1]){
     const ret=await parseReq(request);
-    let title=String(ret.title||(ret.status==="draft"?"未命名草稿":"")),//文章标题
+    let title=String(ret.title||"").trim() || (ret.status==="draft"?"未命名草稿":""),//文章标题
         img=ret.img||"",//插图
         link=ret.link||"",//永久链接
         createDate=String(ret.createDate||"").replace('T',' '),//发布日期
@@ -1254,7 +1259,7 @@ async function handle_admin(request, workerEnv){
   //保存编辑的文章
   if("saveEdit"==paths[1]){
     const ret=await parseReq(request);
-    let title=String(ret.title||""),//文章标题
+    let title=String(ret.title||"").trim() || (ret.status==="draft"?"未命名草稿":""),//文章标题
         img=String(ret.img||""),//插图
         link=String(ret.link||""),//永久链接
         createDate=String(ret.createDate||"").replace('T',' '),//发布日期
@@ -1816,18 +1821,26 @@ async function getSiblingArticle(id){
 
 //清除缓存
 async function purge(cacheZoneId=ACCOUNT.cacheZoneId,cacheToken=ACCOUNT.cacheToken){
-    if(null==cacheZoneId||null==cacheToken||cacheZoneId.length<5||cacheToken.length<5){
+    // 未配置真实凭据时跳过全站清理；公开缓存通过版本号切换，不依赖此 API。
+    if(!cacheZoneId || !cacheToken || /x{4,}/i.test(cacheZoneId) || /x{4,}/i.test(cacheToken)){
         return false;
     }
-    let ret=await fetch(`https://api.cloudflare.com/client/v4/zones/${cacheZoneId}/purge_cache`,{
-        method:"POST",
-        headers:{
-            "Authorization":"Bearer "+cacheToken,
-            "Content-Type":"application/json"
-        },
-        body:'{"purge_everything":true}'
-    });
-    return (await ret.json()).success
+    try{
+      const ret=await fetch(`https://api.cloudflare.com/client/v4/zones/${cacheZoneId}/purge_cache`,{
+          method:"POST",
+          headers:{
+              "Authorization":"Bearer "+cacheToken,
+              "Content-Type":"application/json"
+          },
+          body:'{"purge_everything":true}'
+      });
+      if(!ret.ok) return false;
+      const result=await ret.json();
+      return result.success===true;
+    }catch(error){
+      console.error("Cloudflare cache purge request failed:",String(error&&error.message||error));
+      return false;
+    }
 }
 
 //后台文章列表页的分页加载，返回[文章列表,是否无下一页]

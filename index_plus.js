@@ -1526,12 +1526,10 @@ async function getThemeHtml(template_path){
 
   // 分类完全可选：服务端移除分类字段的必填约束和标签星号，客户端再兜底处理动态表单。
   if(template_path==="admin/index" || template_path==="admin/edit"){
-    html=html.replace(/(<label\\b[^>]*>[^<]*分类)\\s*\\*([^<]*<\\/label>)/gi,"$1（可选）$2");
-    html=html.replace(/(<(?:select|input)\\b[^>]*(?:name|id)=["'][^"']*categor[^"']*["'][^>]*)\\srequired(?:=["'][^"']*["'])?/gi,"$1");
     const optionalCategory = '<script>(function(){function relax(){' +
       'var forms=document.querySelectorAll("form");forms.forEach(function(form){' +
       'form.querySelectorAll("input,select,textarea").forEach(function(el){var key=((el.name||"")+" "+(el.id||"")).toLowerCase();var group=el.closest(".form-group,.form-item,.control-group");var text=group?group.textContent:"";if(key.indexOf("categor")>=0||text.indexOf("分类")>=0){el.required=false;el.removeAttribute("required");el.removeAttribute("aria-required");if(window.jQuery){try{window.jQuery(el).rules("remove","required");}catch(e){}}}});' +
-      'form.querySelectorAll("label").forEach(function(label){if(label.textContent.indexOf("分类")>=0){label.textContent=label.textContent.replace(/\\s*\\*/g,"").replace("（可选）","")+"（可选）";}});' +
+      'form.querySelectorAll("label").forEach(function(label){if(label.textContent.indexOf("分类")>=0){label.textContent=label.textContent.split("*").join("").replace("（可选）","")+"（可选）";}});' +
       '});}' +
       'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",relax);else relax();' +
       'if(window.MutationObserver)new MutationObserver(relax).observe(document.documentElement,{childList:true,subtree:true});})();</script>';

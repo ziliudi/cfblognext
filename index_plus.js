@@ -1129,7 +1129,7 @@ async function handle_admin(request){
     const ret=await parseReq(request);
     const ids=Array.isArray(ret.ids)?[...new Set(ret.ids.map(v=>String(v)))]:[];
     const action=String(ret.action||"");
-    if(!ids.length || ids.length>100 || ids.some(id=>!/^\\d{6}$/.test(id)) ||
+    if(!ids.length || ids.length>100 || ids.some(id=>!/^\d{6}$/.test(id)) ||
        !["delete","hide","unhide"].includes(action)){
       json=JSON.stringify({msg:"操作参数无效",rst:false});
     }else{

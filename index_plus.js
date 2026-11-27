@@ -1126,15 +1126,25 @@ async function handle_admin(request){
   
   //批量管理文章：删除、隐藏、取消隐藏。只接受六位文章ID，并同步KV索引。
   if("manage"==paths[1]){
-    const ret=await parseReq(request);
-    const ids=Array.isArray(ret.ids)?[...new Set(ret.ids.map(v=>String(v)))]:[];
-    const action=String(ret.action||"");
-    if(!ids.length || ids.length>100 || ids.some(id=>!/^\d{6}$/.test(id)) ||
-       !["delete","hide","unhide"].includes(action)){
-      json=JSON.stringify({msg:"操作参数无效",rst:false});
+    let ret={};
+    try{
+      ret=await request.json();
+    }catch(e){
+      ret={};
+    }
+    // 直接解析本接口的 JSON 请求，避免通用表单解析器对数组字段做转换。
+    const ids=Array.isArray(ret.ids)?[...new Set(ret.ids.map(v=>String(v).trim()).filter(Boolean))]:[];
+    const action=String(ret.action||"").trim();
+    if(!ids.length || ids.length>100 || !["delete","hide","unhide"].includes(action)){
+      json=JSON.stringify({msg:"操作参数无效：请确认已选择文章且操作类型正确",rst:false});
     }else{
       const all=await getAllArticlesList();
-      const wanted=new Set(ids);
+      const existingIds=new Set(all.map(item=>String(item.id)));
+      const validIds=ids.filter(id=>existingIds.has(id));
+      if(!validIds.length){
+        json=JSON.stringify({msg:"所选文章不存在或列表数据已过期，请刷新页面后重试",rst:false});
+      }else{
+      const wanted=new Set(validIds);
       let changed=0;
       for(let i=all.length-1;i>=0;i--){
         const item=all[i];
@@ -1160,6 +1170,7 @@ async function handle_admin(request){
         }
       }
       json=JSON.stringify({msg:changed+"篇文章已"+(action==="delete"?"删除":action==="hide"?"隐藏":"取消隐藏"),rst:true,changed});
+      }
     }
   }
 

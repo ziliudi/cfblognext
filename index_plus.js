@@ -1518,9 +1518,9 @@ async function getThemeHtml(template_path){
   
   // 后台采用所见即所得富文本编辑器（TinyMCE），不再加载 Markdown 编辑器。
   if(template_path==="admin/index" || template_path==="admin/edit"){
-    html=html.replace(/<link[^>]+editormd\\.css[^>]*>/gi,"");
-    html=html.replace(/<script[^>]+editor\\.md@[^>]+><\\/script>/gi,"");
-    html=html.replace(/var mdEditor = editormd\\("content", \\{[\\s\\S]*?\\n\\s*\\}\\);/, "window.cfblogInitialHtml = (typeof articleJson !== 'undefined' && articleJson && (articleJson.contentHtml || articleJson.contentMD)) || '';");
+    html=html.replace(/<link[^>]+editormd\.css[^>]*>/gi,"");
+    html=html.replace(/<script[^>]+editor\.md@[^>]+><\/script>/gi,"");
+    html=html.replace(/var mdEditor = editormd\("content", \{[\s\S]*?\n\s*\}\);/, "window.cfblogInitialHtml = (typeof articleJson !== 'undefined' && articleJson && (articleJson.contentHtml || articleJson.contentMD)) || '';");
 
     const richTextEditorScript = `<script>
     (function(){
@@ -1534,7 +1534,7 @@ async function getThemeHtml(template_path){
         const mdField=document.getElementById("cfblog-content-md");
         const htmlField=document.getElementById("cfblog-content-html");
         const initial=String(window.cfblogInitialHtml||"");
-        const initialHtml=/<[a-z][\\s\\S]*>/i.test(initial)?initial:initial.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\\n/g,"<br>");
+        const initialHtml=/<[a-z][\s\S]*>/i.test(initial)?initial:initial.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\n/g,"<br>");
         const load=function(){
           if(!window.tinymce){const script=document.createElement("script");script.src="https://cdn.jsdelivr.net/npm/tinymce@7.9.1/tinymce.min.js";script.referrerPolicy="origin";script.onload=init;script.onerror=function(){editor.style.display="block";editor.style.width="100%";editor.style.minHeight="420px";editor.value=initial.replace(/<[^>]*>/g," ");alert("富文本编辑器加载失败，已显示普通文字输入框，请检查网络后刷新。");};document.head.appendChild(script);}else init();
         };

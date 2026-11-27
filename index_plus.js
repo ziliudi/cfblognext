@@ -33,7 +33,7 @@ const OPT = { //网站配置
   
   "pageSize" : 5,//每页文章数
   "recentlySize" : 6,//最近文章数
-  "recentlyType" : 1,//最近文章类型：1-按创建时间倒序（按id倒序），2-按修改时间排序
+  "recentlyType" : 1,//最近文章类型：1-按文章列表创建顺序，2-按修改时间排序
   "readMoreLength":150,//阅读更多截取长度
   "cacheTime" : 60*60*24*2, //文章在浏览器的缓存时长(秒),建议=文章更新频率
   "html404" : `<b>404</b>`,//404页面代码
@@ -1226,7 +1226,7 @@ async function handle_admin(request, workerEnv){
     }
   }
   
-  //批量管理文章：删除、隐藏、取消隐藏。只接受六位文章ID，并同步KV索引。
+  //批量管理文章：删除、隐藏、取消隐藏、置顶。兼容旧数字 ID 与新 slug ID。
   if("manage"==paths[1]){
     let ret={};
     try{
@@ -1364,16 +1364,11 @@ async function handle_admin(request, workerEnv){
         changefreq:changefreq
       },
       articles_all=await getAllArticlesList();//读取文章列表
-      //console.log(articles_all)
-      //将原对象删掉，将最新的文章加入文章列表中，并重新按id排序后，再次回写到KV中
-      for(var i=articles_all.length-1;i>=0;i--){//按索引删除，要倒序，否则索引值会变
-        if(articles_all[i].id == id){
-          articles_all.splice(i,1);
-          break;
-        }
-      }
-      articles_all.push(articleWithoutHtml),
-      articles_all=sortArticle(articles_all),
+      //在原索引位置更新文章，避免编辑旧文章后改变文章列表的创建顺序。
+      const existingIndex=articles_all.findIndex(item=>String(item.id)===id);
+      if(existingIndex>=0) articles_all.splice(existingIndex,1,articleWithoutHtml);
+      else articles_all.unshift(articleWithoutHtml);
+      articles_all=sortArticle(articles_all);
       await saveArticlesList(JSON.stringify(articles_all))
       json = '{"msg":"Edit OK","rst":true,"id":"'+id+'"}'
     }else{
@@ -1478,9 +1473,9 @@ async function getArticlesList(){
   });
 }
 
-//文章排序：先按id倒排，再按置顶时间倒排
+//文章列表沿用已有创建顺序，仅将置顶文章排在前面；slug ID 不具备时间顺序。
 function sortArticle(articles){
-  return sort(sort(articles,'id'),'top_timestamp');
+  return articles.sort((a,b)=>(Number(b&&b.top_timestamp)||0)-(Number(a&&a.top_timestamp)||0));
 }
 
 // 生成文章永久链接：设置了永久链接时由它取代 ID；未设置时回退为 ID。

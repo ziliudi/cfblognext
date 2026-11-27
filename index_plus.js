@@ -465,7 +465,7 @@ async function handle_search(request){
       if(null != article){
         xml+="\n\t\t<content>"+escapeXml(article.contentMD)+"</content>"
       }
-      xml+="\n\t\t<url>"+escapeXml("https://"+OPT.siteDomain+"/article/"+articles_all[i].id+"/"+articles_all[i].link+".html")+"</url>",
+      xml+="\n\t\t<url>"+escapeXml("https://"+OPT.siteDomain+getArticleUrl(articles_all[i]))+"</url>",
       xml+="\n\t\t<time>"+escapeXml(safeSitemapDate(articles_all[i].createDate))+"</time>",
       xml+="\n\t</blog>";
     }

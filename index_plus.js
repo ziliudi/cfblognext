@@ -1581,6 +1581,12 @@ async function getThemeHtml(template_path){
     html=html.includes("</body>")?html.replace("</body>",optionalCategory+"</body>"):html+optionalCategory;
   }
 
+  // 后台扩展脚本此前只定义在 OPT.editor_page_scripts，却从未注入页面，导致草稿/定时发布、置顶/隐藏和默认日期控件均未生效。
+  if(template_path==="admin/index" || template_path==="admin/edit"){
+    const adminScripts='<script>'+OPT.editor_page_scripts+'</script>';
+    html=html.includes("</body>")?html.replace("</body>",adminScripts+"</body>"):html+adminScripts;
+  }
+
   return html
 }
 

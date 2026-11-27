@@ -1100,7 +1100,17 @@ async function handle_admin(request){
       
       json = '{"msg":"added OK","rst":true,"id":"'+id+'"}'
     }else{
-      json = '{"msg":"信息不全","rst":false}'
+      const missing=[];
+      if(!title.trim()) missing.push("标题为空或超过300字符");
+      if(String(img).length>2048) missing.push("特色图片地址超过2048字符");
+      if(String(link).length>200) missing.push("永久链接超过200字符");
+      if(category.length>30) missing.push("分类数量超过30");
+      if(tags.length>50) missing.push("标签数量超过50");
+      if(contentMD.length>1000000 || contentHtml.length>1000000) missing.push("正文超过1MB");
+      if(status!=="draft" && !createDate.trim()) missing.push("创建日期为空");
+      if(status!=="draft" && !contentHtml.trim()) missing.push("正文为空（富文本 HTML 未同步）");
+      if(status==="scheduled" && !(Number.isFinite(scheduleTime) && scheduleTime>Date.now())) missing.push("定时发布时间无效或已过期");
+      json=JSON.stringify({msg:"保存失败："+(missing.join("；")||"字段校验未通过，请检查表单数据"),rst:false});
     }
   }
   
@@ -1220,7 +1230,19 @@ async function handle_admin(request){
       await saveArticlesList(JSON.stringify(articles_all))
       json = '{"msg":"Edit OK","rst":true,"id":"'+id+'"}'
     }else{
-      json = '{"msg":"信息不全","rst":false}'
+      const missing=[];
+      if(!id || !/^\d{6}$/.test(id)) missing.push("文章ID无效");
+      if(!title.trim() || title.length>300) missing.push("标题为空或超过300字符");
+      if(img.length>2048) missing.push("特色图片地址超过2048字符");
+      if(link.length>200) missing.push("永久链接超过200字符");
+      if(category.length>30) missing.push("分类数量超过30");
+      if(tags.length>50) missing.push("标签数量超过50");
+      if(contentMD.length>1000000 || contentHtml.length>1000000) missing.push("正文超过1MB");
+      if(status!=="draft" && !createDate.trim()) missing.push("创建日期为空");
+      if(status!=="draft" && !contentHtml.trim()) missing.push("正文为空（富文本 HTML 未同步）");
+      if(status==="scheduled" && !(Number.isFinite(scheduleTime) && scheduleTime>Date.now())) missing.push("定时发布时间无效或已过期");
+      if(id && /^\d{6}$/.test(id) && !await getArticle(id)) missing.push("找不到要编辑的文章");
+      json=JSON.stringify({msg:"保存失败："+(missing.join("；")||"字段校验未通过，请检查表单数据"),rst:false});
     }
   }
   

@@ -230,7 +230,7 @@ async function handlerRequest(event){
     const method=request.method.toUpperCase();
     const action=paths[1]||"";
     const readOnly=["","list","getList","edit","getDrafts","getScheduled","export","search.xml","sitemap.xml"];
-    const writeOnly=["publish","saveConfig","import","saveAddNew","delete","saveEdit","manage"];
+    const writeOnly=["publish","saveConfig","import","saveAddNew","delete","saveEdit","manage","uploadFavicon"];
     if((readOnly.includes(action) && !["GET","HEAD"].includes(method)) ||
        (writeOnly.includes(action) && method!=="POST") ||
        (!readOnly.includes(action) && !writeOnly.includes(action))){
@@ -241,7 +241,7 @@ async function handlerRequest(event){
     }
     // 拒绝明显超出正常范围的后台请求体，避免意外的大请求消耗 Worker 内存。
     const contentLength=Number(request.headers.get("Content-Length")||0);
-    if(method==="POST" && contentLength>2200000){
+    if(method==="POST" && contentLength>2300000){
       return withSecurityHeaders(new Response("Payload Too Large",{
         headers:{"Content-Type":"text/plain;charset=UTF-8"},
         status:413
@@ -367,22 +367,15 @@ function safeSitemapPriority(value){
 
 //访问: favicon.ico
 async function handle_favicon(request){
-  /*
-  想要自定义，或者用指定的ico，可将此请求置为404，并在codeBeforHead中自行添加类似代码：
-    <link rel="icon" type="image/x-icon" href="https://cdn.jsdelivr.net/gh/gdtool/zhaopp/cfblog/favicon.ico" />
-    <link rel="Shortcut Icon" href="https://cdn.jsdelivr.net/gh/gdtool/zhaopp/cfblog/favicon.ico">
-  */
-  /*
-  return new Response("404",{
-      headers:{
-          "content-type":"text/plain;charset=UTF-8"
-      },
-      status:404
-  });
-  */
-  let url = new URL(request.url)
-  url.host="dash.cloudflare.com"
-  return await fetch(new Request(url, request));
+  const bucket=env.BLOG_ASSETS;
+  if(!bucket) return new Response("R2 binding BLOG_ASSETS is not configured",{status:503});
+  const object=await bucket.get("site-favicon");
+  if(!object) return new Response("Favicon not configured",{status:404,headers:{"Cache-Control":"no-store"}});
+  const headers=new Headers();
+  object.writeHttpMetadata(headers);
+  headers.set("Cache-Control","public, max-age=300");
+  headers.set("X-Content-Type-Options","nosniff");
+  return new Response(object.body,{headers});
 }
 
 //访问: robots.txt
@@ -830,11 +823,11 @@ async function handle_admin(request){
                     .replaceHtmlPara("menuJson",JSON.stringify(menuJson))
                     .replaceHtmlPara("linkJson",JSON.stringify(linkJson))
     // 设置页分为“编辑设置”和“博客设置”；博客资料从 KV 读取并回填。
-    const settingsUi=`<h3 style="margin-top:0">博客设置</h3><form id="blogSettingsForm" role="form"><div class="form-group"><label for="cfblog-site-name">博客名称</label><input class="form-control" id="cfblog-site-name" name="siteName" maxlength="100" required></div><div class="form-group"><label for="cfblog-site-description">博客简介（SEO 描述）</label><textarea class="form-control" id="cfblog-site-description" name="siteDescription" rows="3" maxlength="500"></textarea></div><div class="form-group"><label for="cfblog-site-intro">自我介绍（显示在博客首页）</label><textarea class="form-control" id="cfblog-site-intro" name="siteIntro" rows="5" maxlength="2000"></textarea></div><hr><h4>页脚设置</h4><div class="form-group"><label for="cfblog-footer-start-year">版权起始年份</label><input class="form-control" type="number" id="cfblog-footer-start-year" name="footerStartYear" min="1900" max="2099" required></div><div class="form-group"><label for="cfblog-footer-owner">版权作者 / 博客名</label><input class="form-control" id="cfblog-footer-owner" name="footerOwner" maxlength="100" required></div><div class="form-group"><label for="cfblog-footer-owner-url">作者 / 博客名链接</label><input class="form-control" type="url" id="cfblog-footer-owner-url" name="footerOwnerUrl" maxlength="2048" placeholder="https://example.com"><small class="help-block">填写后，前端页脚中的作者 / 博客名将链接到此网址；留空则不添加链接。</small></div><p class="help-block">页脚第一行固定显示平台说明；第二行自动使用当前年份。</p><button type="button" class="btn btn-primary" id="cfblog-save-blog-settings">保存博客设置</button></form><hr>`;
+    const settingsUi=`<h3 style="margin-top:0">博客设置</h3><form id="blogSettingsForm" role="form"><div class="form-group"><label for="cfblog-site-name">博客名称</label><input class="form-control" id="cfblog-site-name" name="siteName" maxlength="100" required></div><div class="form-group"><label for="cfblog-site-description">博客简介（SEO 描述）</label><textarea class="form-control" id="cfblog-site-description" name="siteDescription" rows="3" maxlength="500"></textarea></div><div class="form-group"><label for="cfblog-site-intro">自我介绍（显示在博客首页）</label><textarea class="form-control" id="cfblog-site-intro" name="siteIntro" rows="5" maxlength="2000"></textarea></div><hr><h4>页脚设置</h4><div class="form-group"><label for="cfblog-footer-start-year">版权起始年份</label><input class="form-control" type="number" id="cfblog-footer-start-year" name="footerStartYear" min="1900" max="2099" required></div><div class="form-group"><label for="cfblog-footer-owner">版权作者 / 博客名</label><input class="form-control" id="cfblog-footer-owner" name="footerOwner" maxlength="100" required></div><div class="form-group"><label for="cfblog-footer-owner-url">作者 / 博客名链接</label><input class="form-control" type="url" id="cfblog-footer-owner-url" name="footerOwnerUrl" maxlength="2048" placeholder="https://example.com"><small class="help-block">填写后，前端页脚中的作者 / 博客名将链接到此网址；留空则不添加链接。</small></div><p class="help-block">页脚第一行固定显示平台说明；第二行自动使用当前年份。</p><button type="button" class="btn btn-primary" id="cfblog-save-blog-settings">保存博客设置</button></form><hr><h3>浏览器图标</h3><div class="form-group"><label for="cfblog-favicon-file">上传图标图片</label><input class="form-control" type="file" id="cfblog-favicon-file" accept="image/png,image/jpeg,image/webp,image/gif,image/x-icon,.ico"><small class="help-block">支持 PNG、JPG、WebP、GIF、ICO，最大 2 MB。建议使用正方形图片。</small></div><button type="button" class="btn btn-primary" id="cfblog-upload-favicon">上传并启用</button> <span id="cfblog-favicon-status" role="status"></span><hr>`;
     html=html.replace(`<form id="configForm" role="form" >`,`<form id="configForm" role="form" ><h3>编辑设置</h3>`);
     html=html.replace(`<div class="container" >\n\t\t\t<form id="configForm"`,`<div class="container" >\n\t\t\t${settingsUi}<form id="configForm"`);
     const blogSettingsJson=JSON.stringify({siteName:blogSettings.siteName||OPT.siteName,siteDescription:blogSettings.siteDescription||OPT.siteDescription,siteIntro:blogSettings.siteIntro||OPT.siteIntro,footerStartYear:blogSettings.footerStartYear||"2024",footerOwner:blogSettings.footerOwner||"自留地",footerOwnerUrl:blogSettings.footerOwnerUrl||""}).replace(/</g,"\\u003c");
-    html=html.replace(`</body>`,`<script>(function(){const v=${blogSettingsJson};document.getElementById("cfblog-site-name").value=v.siteName||"";document.getElementById("cfblog-site-description").value=v.siteDescription||"";document.getElementById("cfblog-site-intro").value=v.siteIntro||"";document.getElementById("cfblog-footer-start-year").value=v.footerStartYear||"2024";document.getElementById("cfblog-footer-owner").value=v.footerOwner||"自留地";document.getElementById("cfblog-footer-owner-url").value=v.footerOwnerUrl||"";document.getElementById("cfblog-save-blog-settings").addEventListener("click",function(){const form=document.getElementById("blogSettingsForm");const data=["siteName","siteDescription","siteIntro","footerStartYear","footerOwner","footerOwnerUrl"].map(name=>({name,value:form.elements[name].value}));fetch("/admin/saveConfig/",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}).then(async r=>{const x=await r.json();if(!r.ok||!x.rst)throw new Error(x.msg||("HTTP "+r.status));alert(x.msg);}).catch(e=>alert("保存失败："+e.message));});})();</script></body>`);
+    html=html.replace(`</body>`,`<script>(function(){const v=${blogSettingsJson};document.getElementById("cfblog-site-name").value=v.siteName||"";document.getElementById("cfblog-site-description").value=v.siteDescription||"";document.getElementById("cfblog-site-intro").value=v.siteIntro||"";document.getElementById("cfblog-footer-start-year").value=v.footerStartYear||"2024";document.getElementById("cfblog-footer-owner").value=v.footerOwner||"自留地";document.getElementById("cfblog-footer-owner-url").value=v.footerOwnerUrl||"";document.getElementById("cfblog-save-blog-settings").addEventListener("click",function(){const form=document.getElementById("blogSettingsForm");const data=["siteName","siteDescription","siteIntro","footerStartYear","footerOwner","footerOwnerUrl"].map(name=>({name,value:form.elements[name].value}));fetch("/admin/saveConfig/",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)}).then(async r=>{const x=await r.json();if(!r.ok||!x.rst)throw new Error(x.msg||("HTTP "+r.status));alert(x.msg);}).catch(e=>alert("保存失败："+e.message));});const upload=document.getElementById("cfblog-upload-favicon");upload.addEventListener("click",async function(){const input=document.getElementById("cfblog-favicon-file"),status=document.getElementById("cfblog-favicon-status");if(!input.files||!input.files[0]){status.textContent="请先选择图片";return;}const data=new FormData();data.append("file",input.files[0]);upload.disabled=true;status.textContent="正在上传…";try{const r=await fetch("/admin/uploadFavicon/",{method:"POST",credentials:"same-origin",body:data});const x=await r.json();if(!r.ok||!x.rst)throw new Error(x.msg||("HTTP "+r.status));status.textContent=x.msg+"；刷新页面后生效。";}catch(e){status.textContent="上传失败："+e.message;}finally{upload.disabled=false;}});})();</script></body>`);
 //添加后台首页配置
     if(OPT.admin_home_idx && OPT.admin_home_idx>=1 && OPT.admin_home_idx<=4){
       html = html.replace("$('#myTab li:eq(0) 1').tab('show')","$($('#myTab a[href*=\"'+location.hash+'\"]')[0]||$('#myTab a:eq("+OPT.admin_home_idx+")')).tab('show')")
@@ -907,6 +900,33 @@ async function handle_admin(request){
     }
   }
   
+  // 上传浏览器图标到 R2；仅接受常见位图格式并验证文件签名。
+  if("uploadFavicon"==paths[1]){
+    try{
+      const bucket=env.BLOG_ASSETS;
+      if(!bucket) throw new Error("R2 绑定 BLOG_ASSETS 不可用");
+      const form=await request.formData(), image=form.get("file");
+      if(!image || typeof image.arrayBuffer!=="function") throw new Error("请选择图片文件");
+      if(image.size<=0 || image.size>2*1024*1024) throw new Error("图片必须大于 0 且不超过 2 MB");
+      const type=String(image.type||"").toLowerCase();
+      const allowed=["image/png","image/jpeg","image/webp","image/gif","image/x-icon","image/vnd.microsoft.icon"];
+      if(!allowed.includes(type)) throw new Error("不支持此图片格式，请使用 PNG、JPG、WebP、GIF 或 ICO");
+      const bytes=await image.arrayBuffer(), view=new Uint8Array(bytes);
+      const starts=(arr)=>arr.every((v,i)=>view[i]===v);
+      let valid=false;
+      if(type==="image/png") valid=starts([137,80,78,71,13,10,26,10]);
+      else if(type==="image/jpeg") valid=starts([255,216,255]);
+      else if(type==="image/gif") valid=starts([71,73,70,56]) && (view[4]===55||view[4]===57) && view[5]===97;
+      else if(type==="image/webp") valid=starts([82,73,70,70]) && String.fromCharCode(...view.slice(8,12))==="WEBP";
+      else if(type==="image/x-icon"||type==="image/vnd.microsoft.icon") valid=starts([0,0,1,0]);
+      if(!valid) throw new Error("图片内容与文件格式不匹配");
+      await bucket.put("site-favicon",bytes,{httpMetadata:{contentType:type,cacheControl:"public, max-age=300"}});
+      json=JSON.stringify({msg:"图标上传成功",rst:true});
+    }catch(error){
+      json=JSON.stringify({msg:"上传失败："+String(error&&error.message||error).slice(0,200),rst:false});
+    }
+  }
+
   //保存博客设置：仅允许修改博客名称、博客简介和自我介绍，不覆盖 Worker 的其他配置。
   if("saveConfig"==paths[1]){
     let payload=[];

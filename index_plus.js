@@ -734,7 +734,7 @@ footer{padding:25px 0 42px;border-top:1px solid var(--line);color:#999;font-size
 async function handle_article(id){
   //禁止通过猜测文章 ID 直接访问草稿和未到发布时间的定时文章。
   const requestedArticle=await getArticle(id);
-  if(!requestedArticle || requestedArticle.status==="draft"){
+  if(!requestedArticle || requestedArticle.hidden || requestedArticle.status==="draft"){
     return new Response(OPT.html404,{headers:{"content-type":"text/html;charset=UTF-8"},status:404});
   }
   if(requestedArticle.status==="scheduled"){
@@ -1101,7 +1101,7 @@ async function handle_admin(request){
       json = '{"msg":"added OK","rst":true,"id":"'+id+'"}'
     }else{
       const missing=[];
-      if(!title.trim()) missing.push("标题为空或超过300字符");
+      if(!title.trim() || title.length>300) missing.push("标题为空或超过300字符");
       if(String(img).length>2048) missing.push("特色图片地址超过2048字符");
       if(String(link).length>200) missing.push("永久链接超过200字符");
       if(category.length>30) missing.push("分类数量超过30");

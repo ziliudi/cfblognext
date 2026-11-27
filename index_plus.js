@@ -1776,7 +1776,7 @@ async function getThemeHtml(template_path, articleId=null){
     const script='<script>(function(){const names='+categoryData+',meta='+metaData+';function init(){' +
       // 新建页和三个编辑入口统一使用同一套表单初始化；主题表单 ID 变化时按字段自动兜底定位。
       'const form=document.querySelector("form#addNewForm,form#editForm")||Array.from(document.forms).find(function(f){return f.querySelector("#category,[name*=categor i]")&&f.querySelector("#tags,[name*=tag i]");});if(!form)return;' +
-      'let field=form.querySelector("#category,[name=category],[name="category[]"],[name*="categor" i]");' +
+      'let field=form.querySelector("#category,[name*=categor i]");' +
       'if(field){const select=document.createElement("select");select.id="category";select.name="category";select.multiple=true;select.className=field.className||"form-control";select.size=Math.min(6,Math.max(3,names.length+1));' +
       'names.forEach(function(n){const o=document.createElement("option");o.value=n;o.textContent=n;o.selected=meta.categories.includes(n);select.appendChild(o);});' +
       'const custom=document.createElement("option");custom.value="__cfblog_custom__";custom.textContent="＋ 自定义";select.appendChild(custom);field.replaceWith(select);' +

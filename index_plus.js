@@ -1462,7 +1462,7 @@ async function getThemeHtml(template_path){
     html=html.replace(/<link[^>]+editormd\.css[^>]*>/gi,"");
     html=html.replace(/<script[^>]+editor\.md@[^>]*><\/script>/gi,"");
     html=html.replace(/var mdEditor = editormd\("content", \{[\s\S]*?\n\s*\}\);/,"");
-    if(template_path==="admin/edit") html=html.replace(/var articleJson = (<!--\\{articleJson\\}-->);/, "var articleJson = $1; window.cfblogInitialHtml = articleJson.contentHtml || articleJson.contentMD || \"\";");
+    if(template_path==="admin/edit") html=html.replace(/var articleJson = (<!--\{articleJson\}-->);/, "var articleJson = $1; window.cfblogInitialHtml = articleJson.contentHtml || articleJson.contentMD || '';");
     const editorScript = `<style>
       #cfblog-editor{border:1px solid #ccc;border-radius:4px;background:#fff;margin:16px 0 24px;width:100%;overflow:hidden}
       #cfblog-editor-toolbar{display:flex;flex-wrap:wrap;gap:5px;padding:8px;border-bottom:1px solid #ddd;background:#f7f7f7}

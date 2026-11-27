@@ -1561,6 +1561,7 @@ async function getThemeHtml(template_path){
           mdField.value=ed.getContent({format:"text"}).trim()||html.replace(/<[^>]*>/g," ").trim();
         };
         form.addEventListener("submit",sync,true);
+        document.addEventListener("click",function(event){if(event.target.closest("#btn_saveAddNew,#btn_saveEdit,#btn_save"))sync();},true);
         const save=form.querySelector("#btn_saveAddNew,#btn_saveEdit,#btn_save");
         if(save) save.addEventListener("click",sync,true);
         load();

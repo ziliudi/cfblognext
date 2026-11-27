@@ -229,7 +229,7 @@ async function handlerRequest(event){
     const method=request.method.toUpperCase();
     const action=paths[1]||"";
     const readOnly=["","list","getList","edit","getDrafts","getScheduled","export","search.xml","sitemap.xml"];
-    const writeOnly=["publish","saveConfig","import","saveAddNew","delete","saveEdit"];
+    const writeOnly=["publish","saveConfig","import","saveAddNew","delete","saveEdit","manage"];
     if((readOnly.includes(action) && !["GET","HEAD"].includes(method)) ||
        (writeOnly.includes(action) && method!=="POST") ||
        (!readOnly.includes(action) && !writeOnly.includes(action))){
@@ -1124,6 +1124,45 @@ async function handle_admin(request){
     }
   }
   
+  //批量管理文章：删除、隐藏、取消隐藏。只接受六位文章ID，并同步KV索引。
+  if("manage"==paths[1]){
+    const ret=await parseReq(request);
+    const ids=Array.isArray(ret.ids)?[...new Set(ret.ids.map(v=>String(v)))]:[];
+    const action=String(ret.action||"");
+    if(!ids.length || ids.length>100 || ids.some(id=>!/^\\d{6}$/.test(id)) ||
+       !["delete","hide","unhide"].includes(action)){
+      json=JSON.stringify({msg:"操作参数无效",rst:false});
+    }else{
+      const all=await getAllArticlesList();
+      const wanted=new Set(ids);
+      let changed=0;
+      for(let i=all.length-1;i>=0;i--){
+        const item=all[i];
+        if(!wanted.has(String(item.id))) continue;
+        if(action==="delete"){
+          await CFBLOG.delete(String(item.id));
+          all.splice(i,1);
+          changed++;
+        }else{
+          const article=await getArticle(String(item.id));
+          if(!article) continue;
+          article.hidden=action==="hide"?1:0;
+          await saveArticle(String(item.id),JSON.stringify(article));
+          item.hidden=article.hidden;
+          changed++;
+        }
+      }
+      if(changed){
+        await saveArticlesList(JSON.stringify(all));
+        if(action==="hide" || action==="unhide"){
+          const tags=[...new Set(all.filter(a=>a.status!=="draft"&&a.status!=="scheduled"&&!a.hidden).flatMap(a=>Array.isArray(a.tags)?a.tags:[]).filter(Boolean))];
+          await saveWidgetTags(JSON.stringify(tags));
+        }
+      }
+      json=JSON.stringify({msg:changed+"篇文章已"+(action==="delete"?"删除":action==="hide"?"隐藏":"取消隐藏"),rst:true,changed});
+    }
+  }
+
   //保存编辑的文章
   if("saveEdit"==paths[1]){
     const ret=await parseReq(request);
@@ -1494,9 +1533,10 @@ async function getThemeHtml(template_path){
     // 草稿允许不填写发布日期；原主题的 saveAddNew 校验会在发请求前拦截无日期草稿。
     html=html.replace("|| $('#createDate').val() == \"\" || $('#createDate').val() == null","|| ($('#cfblog-status').val() !== \"draft\" && ($('#createDate').val() == \"\" || $('#createDate').val() == null))");
     // 后台文章列表增加管理操作列，编辑/删除均针对当前行的真实 ID。
-    html=html.replace("tableContent += '<tr><td>'+Info.id+'</td><td><a href=\"/admin/edit/'+Info.id+'\">'+Info.title+'</a></td><td>'+Info.createDate.replace(\"T\",\"\")+'</td></tr>';","tableContent += '<tr><td>'+Info.id+'</td><td><a href=\"/admin/edit/'+Info.id+'\">'+Info.title+'</a></td><td>'+(Info.createDate||\"\").replace(\"T\",\"\")+'</td><td><a class=\"btn btn-xs btn-primary\" href=\"/admin/edit/'+Info.id+'\">编辑</a> <button class=\"btn btn-xs btn-danger\" type=\"button\" onclick=\"cfblogDeleteArticle(\\''+Info.id+'\\')\">删除</button></td></tr>';");
-    html=html.replace('<tr><td>ID</td><td>标题</td><td>创建日期</td></tr>','<tr><td>ID</td><td>标题</td><td>创建日期</td><td>管理</td></tr>');
-    const articleManagement='<script>window.cfblogDeleteArticle=function(id){if(!/^\\d{6}$/.test(String(id))||!confirm("确定删除文章 "+id+" 吗？此操作不可撤销。"))return;fetch("/admin/delete/"+encodeURIComponent(id)+"/",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:"{}"}).then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(x){alert(x.msg||"删除完成");if(x.rst)location.reload();}).catch(function(){alert("删除失败，请检查登录状态后重试");});};</script>';
+    html=html.replace("tableContent += '<tr><td>'+Info.id+'</td><td><a href=\"/admin/edit/'+Info.id+'\">'+Info.title+'</a></td><td>'+Info.createDate.replace(\"T\",\"\")+'</td></tr>';","tableContent += '<tr><td><input type=\"checkbox\" class=\"cfblog-row-select\" value=\"'+Info.id+'\"></td><td>'+Info.id+'</td><td><a href=\"/admin/edit/'+Info.id+'\">'+Info.title+'</a></td><td>'+(Info.createDate||\"\").replace(\"T\",\"\")+'</td><td><button class=\"btn btn-xs btn-default\" type=\"button\" onclick=\"cfblogManageOne(\\''+Info.id+'\\',\\'hide\\')\">隐藏</button> <button class=\"btn btn-xs btn-danger\" type=\"button\" onclick=\"cfblogManageOne(\\''+Info.id+'\\',\\'delete\\')\">删除</button></td></tr>';");
+    html=html.replace('<tr><td>ID</td><td>标题</td><td>创建日期</td></tr>','<tr><td><input type="checkbox" id="cfblog-select-all"></td><td>ID</td><td>标题</td><td>创建日期</td><td>管理</td></tr>');
+    html=html.replace('<table class="table  table-striped" id="articleList">','<div class="btn-toolbar" style="margin:10px 0"><button type="button" class="btn btn-default btn-sm" onclick="cfblogSelectAll(true)">全选</button> <button type="button" class="btn btn-default btn-sm" onclick="cfblogSelectAll(false)">取消全选</button> <button type="button" class="btn btn-warning btn-sm" onclick="cfblogManageSelected(\'hide\')">隐藏所选</button> <button type="button" class="btn btn-info btn-sm" onclick="cfblogManageSelected(\'unhide\')">取消隐藏</button> <button type="button" class="btn btn-danger btn-sm" onclick="cfblogManageSelected(\'delete\')">删除所选</button></div><table class="table  table-striped" id="articleList">');
+    const articleManagement='<script>window.cfblogSelectAll=function(v){document.querySelectorAll(".cfblog-row-select").forEach(function(x){x.checked=!!v;});var h=document.getElementById("cfblog-select-all");if(h)h.checked=!!v;};window.cfblogManageOne=function(id,action){if(action==="delete"&&!confirm("确定永久删除文章 "+id+" 吗？"))return;if(action==="hide"&&!confirm("确定隐藏文章 "+id+" 吗？"))return;cfblogManage([id],action);};window.cfblogManageSelected=function(action){var ids=Array.from(document.querySelectorAll(".cfblog-row-select:checked")).map(function(x){return x.value;});if(!ids.length){alert("请先勾选文章");return;}if(action==="delete"&&!confirm("确定永久删除选中的 "+ids.length+" 篇文章吗？"))return;if(action==="hide"&&!confirm("确定隐藏选中的 "+ids.length+" 篇文章吗？"))return;cfblogManage(ids,action);};window.cfblogManage=function(ids,action){fetch("/admin/manage/",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({ids:ids,action:action})}).then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();}).then(function(x){alert(x.msg||"操作完成");if(x.rst)location.reload();}).catch(function(){alert("操作失败，请检查后台登录状态后重试");});};document.addEventListener("change",function(e){if(e.target&&e.target.id==="cfblog-select-all")cfblogSelectAll(e.target.checked);});</script>';
     html=html.includes("</body>")?html.replace("</body>",articleManagement+"</body>"):html+articleManagement;
 
   }
@@ -1545,7 +1585,7 @@ async function getThemeHtml(template_path){
           target.parentNode.insertBefore(panel,target.nextSibling);
           async function load(){
             for(const type of ["Drafts","Scheduled"]){
-              const key=type.toLowerCase(),list=document.getElementById("cfblog-"+key+"-list"),count=document.getElementById("cfblog-"+key+"-count");
+              const key=type==="Drafts"?"draft":"scheduled",list=document.getElementById("cfblog-"+key+"-list"),count=document.getElementById("cfblog-"+key+"-count");
               try{
                 const response=await fetch("/admin/get"+type,{credentials:"same-origin",cache:"no-store"});
                 if(!response.ok) throw new Error("HTTP "+response.status);

@@ -1507,7 +1507,7 @@ async function getThemeHtml(template_path){
     html=html.replace(/<link\b[^>]*editormd[^>]*>/gi,"");
     html=html.replace(/<script\b[^>]*editormd[^>]*><\/script>/gi,"");
     html=html.replace(/var mdEditor\s*=\s*editormd\("content",\s*\{[\s\S]*?\n\s*\}\);/,"");
-    if(template_path==="admin/edit") html=html.replace(/var articleJson\s*=\s*(<!--\{articleJson\}-->);/,"var articleJson = $1; window.cfblogInitialHtml = articleJson.contentHtml || articleJson.contentMD || '';");
+    if(template_path==="admin/edit") html=html.replace(/var articleJson\s*=\s*(<!--\{articleJson\}-->);/,"var articleJson = $1; window.articleJson=articleJson; window.cfblogInitialHtml = articleJson.contentHtml || articleJson.contentMD || '';");
     const editorMarkup = '<section id="cfblog-editor" style="border:1px solid #ccc;background:#fff;margin:12px 0;width:100%;">' +
       '<div id="cfblog-editor-toolbar" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:#f5f5f5;border-bottom:1px solid #ddd;">' +
       '<button type="button" data-cmd="undo">撤销</button><button type="button" data-cmd="redo">重做</button><button type="button" data-cmd="bold"><b>加粗</b></button><button type="button" data-cmd="italic"><i>斜体</i></button><button type="button" data-cmd="underline"><u>下划线</u></button>' +

@@ -1523,6 +1523,20 @@ async function getThemeHtml(template_path){
     html=html.includes("</body>")?html.replace("</body>",workflowDashboard+"</body>"):html+workflowDashboard;
   }
   
+
+  // 分类是可选元数据：主题模板可能给分类控件加 required，导致浏览器阻止提交。
+  // 后端 saveAddNew/saveEdit 已将缺省分类规范化为 []，并允许 category.length === 0。
+  if(template_path==="admin/index" || template_path==="admin/edit"){
+    const optionalCategory = '<script>(function(){function relaxCategory(){' +
+      'var form=document.querySelector("form#addNewForm,form#editForm");if(!form)return;' +
+      'form.querySelectorAll("[name*=category i],[id*=category i]").forEach(function(el){el.required=false;el.removeAttribute("required");el.removeAttribute("aria-required");el.removeAttribute("data-val-required");});' +
+      'form.querySelectorAll("label[for]").forEach(function(label){var target=form.querySelector("#"+CSS.escape(label.htmlFor));if(target&&/分类/.test(label.textContent)&&!/可选/.test(label.textContent))label.textContent=label.textContent.trim()+"（可选）";});' +
+      '}' +
+      'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",relaxCategory);else relaxCategory();' +
+      'new MutationObserver(relaxCategory).observe(document.documentElement,{childList:true,subtree:true});})();</script>';
+    html=html.includes("</body>")?html.replace("</body>",optionalCategory+"</body>"):html+optionalCategory;
+  }
+
   return html
 }
 

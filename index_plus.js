@@ -1794,12 +1794,12 @@ async function getThemeHtml(template_path, articleId=null){
         });
         const panel=document.createElement("section");
         panel.id="cfblog-meta-editor";
-        panel.className="form-group";
-        panel.style.cssText="border:1px solid #ddd;border-radius:4px;padding:12px;margin:12px 0;background:#fafafa";
+        panel.className="cfblog-meta-editor";
+        panel.style.cssText="display:block;clear:both;width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:4px;padding:12px;margin:10px 0 14px;background:#fafafa";
         const title=document.createElement("strong");title.textContent="文章分类与标签";panel.appendChild(title);
-        const categoryWrap=document.createElement("div");categoryWrap.className="form-group";categoryWrap.style.marginTop="10px";
+        const categoryWrap=document.createElement("div");categoryWrap.className="form-group";categoryWrap.style.cssText="display:block;width:100%;margin:10px 0";
         const categoryLabel=document.createElement("label");categoryLabel.textContent="分类（可多选）";categoryWrap.appendChild(categoryLabel);
-        const select=document.createElement("select");select.id="category";select.name="category";select.multiple=true;select.size=Math.min(7,Math.max(4,categoryNames.length+1));select.className="form-control";
+        const select=document.createElement("select");select.id="category";select.name="category";select.multiple=true;select.size=Math.min(8,Math.max(4,categoryNames.length+1));select.className="form-control";select.style.width="100%";
         categoryNames.forEach(function(name){const option=document.createElement("option");option.value=name;option.textContent=name;option.selected=meta.categories.includes(name);select.appendChild(option);});
         const custom=document.createElement("option");custom.value="__cfblog_custom__";custom.textContent="＋ 自定义";select.appendChild(custom);
         select.addEventListener("change",function(){
@@ -1811,12 +1811,12 @@ async function getThemeHtml(template_path, articleId=null){
         categoryWrap.appendChild(select);
         const categoryHelp=document.createElement("small");categoryHelp.className="help-block";categoryHelp.textContent="默认分类：散文、诗词、杂谈；选择“自定义”可新增分类。分类可多选。";categoryWrap.appendChild(categoryHelp);
         panel.appendChild(categoryWrap);
-        const tagWrap=document.createElement("div");tagWrap.className="form-group";
+        const tagWrap=document.createElement("div");tagWrap.className="form-group";tagWrap.style.cssText="display:block;width:100%;margin:10px 0 0";
         const tagLabel=document.createElement("label");tagLabel.textContent="标签";tagWrap.appendChild(tagLabel);
-        const tag=document.createElement("input");tag.type="text";tag.id="tags";tag.name="tags";tag.className="form-control";tag.placeholder="多个标签请用英文逗号 , 分隔";tag.value=meta.tags.join(", ");tagWrap.appendChild(tag);
+        const tag=document.createElement("input");tag.type="text";tag.id="tags";tag.name="tags";tag.className="form-control";tag.style.width="100%";tag.placeholder="请输入标签，多个标签用英文逗号分隔";tag.value=meta.tags.join(", ");tagWrap.appendChild(tag);
         const tagHelp=document.createElement("small");tagHelp.className="help-block";tagHelp.textContent="直接输入标签，多个标签使用英文逗号分隔。";tagWrap.appendChild(tagHelp);
         panel.appendChild(tagWrap);
-        form.insertBefore(panel,form.firstChild);
+        const titleField=form.querySelector("#title"),titleGroup=titleField&&titleField.closest(".form-group");if(titleGroup)titleGroup.insertAdjacentElement("afterend",panel);else form.insertBefore(panel,form.firstChild);
       }
       if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
     })();</script>`;
@@ -1839,6 +1839,13 @@ async function getThemeHtml(template_path, articleId=null){
   if(template_path==="admin/index" || template_path==="admin/edit"){
     const adminScripts='<script>'+OPT.editor_page_scripts+'</script>';
     html=html.includes("</body>")?html.replace("</body>",adminScripts+"</body>"):html+adminScripts;
+  }
+
+  if(template_path==="admin/index" || template_path==="admin/edit"){
+    const controls='<div id="cfblog-editor-actions" class="form-group" style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0;width:100%"><button type="button" class="btn btn-info" onclick="cfblogSaveAsDraft()">保存为草稿</button><button type="button" class="btn btn-success" onclick="cfblogPublishNow()">立即发布</button><button type="button" class="btn btn-primary" onclick="cfblogSchedule()">定时发布</button></div>';
+    if(template_path==="admin/index") html=html.replace(/<a[^>]*id="btn_saveAddNew"[^>]*>[\s\S]*?<\/a>/i,controls);
+    const script='<script>(function(){function sync(){var a=document.getElementById("cfblog-editor-area"),m=document.getElementById("cfblog-content-md"),h=document.getElementById("cfblog-content-html");if(a&&m&&h){h.value=a.innerHTML;m.value=a.innerText||a.textContent||"";}}function status(v){var s=document.getElementById("cfblog-status");if(!s){alert("文章状态控件未加载，请刷新页面后重试");return false;}s.value=v;s.dispatchEvent(new Event("change",{bubbles:true}));if(v==="scheduled"){var d=document.getElementById("cfblog-scheduled-at");if(!d||!d.value){alert("请先选择计划发布时间");if(d)d.focus();return false;}if(new Date(d.value).getTime()<=Date.now()){alert("计划发布时间必须晚于当前时间");d.focus();return false;}}sync();return true;}function save(){if(location.pathname.indexOf("/admin/edit/")===0){if(window.saveEdit)window.saveEdit();return;}var f=document.getElementById("addNewForm"),t=f&&f.querySelector("#title");if(!f||!t||!t.value.trim()){alert("请填写文章标题");return;}sync();var st=document.getElementById("cfblog-status"),d=document.getElementById("createDate"),h=document.getElementById("cfblog-content-html");if(st&&st.value!=="draft"&&(!d||!d.value)){alert("请填写创建日期");return;}if(st&&st.value!=="draft"&&(!h||!h.value.trim())){alert("请填写文章正文");return;}window.jQuery.ajax({type:"POST",dataType:"json",url:"/admin/saveAddNew/",contentType:"application/json; charset=utf-8",data:JSON.stringify(window.jQuery(f).serializeArray()),success:function(x){if(x&&x.rst&&x.id){var id=f.querySelector("#id");if(id)id.value=x.id;}alert(x&&x.msg?x.msg:"保存失败");},error:function(x){alert("保存请求失败："+x.status);}});}window.cfblogSaveAsDraft=function(){if(status("draft"))save();};window.cfblogPublishNow=function(){if(status("published"))save();};window.cfblogSchedule=function(){if(status("scheduled"))save();};})();</script>';
+    html=html.includes("</body>")?html.replace("</body>",script+"</body>"):html+script;
   }
 
   return html

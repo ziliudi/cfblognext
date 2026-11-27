@@ -1,0 +1,8 @@
+{
+  "name": "cfblognext",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "pinyin-pro": "^3.26.0"
+  }
+}

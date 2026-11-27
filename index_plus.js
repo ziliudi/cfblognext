@@ -1524,16 +1524,17 @@ async function getThemeHtml(template_path){
   }
   
 
-  // 分类是可选元数据：主题模板可能给分类控件加 required，导致浏览器阻止提交。
-  // 后端 saveAddNew/saveEdit 已将缺省分类规范化为 []，并允许 category.length === 0。
+  // 分类完全可选：服务端移除分类字段的必填约束和标签星号，客户端再兜底处理动态表单。
   if(template_path==="admin/index" || template_path==="admin/edit"){
-    const optionalCategory = '<script>(function(){function relaxCategory(){' +
-      'var form=document.querySelector("form#addNewForm,form#editForm");if(!form)return;' +
-      'form.querySelectorAll("[name*=category i],[id*=category i]").forEach(function(el){el.required=false;el.removeAttribute("required");el.removeAttribute("aria-required");el.removeAttribute("data-val-required");});' +
-      'form.querySelectorAll("label[for]").forEach(function(label){var target=form.querySelector("#"+CSS.escape(label.htmlFor));if(target&&/分类/.test(label.textContent)&&!/可选/.test(label.textContent))label.textContent=label.textContent.trim()+"（可选）";});' +
-      '}' +
-      'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",relaxCategory);else relaxCategory();' +
-      'new MutationObserver(relaxCategory).observe(document.documentElement,{childList:true,subtree:true});})();</script>';
+    html=html.replace(/(<label\\b[^>]*>[^<]*分类)\\s*\\*([^<]*<\\/label>)/gi,"$1（可选）$2");
+    html=html.replace(/(<(?:select|input)\\b[^>]*(?:name|id)=["'][^"']*categor[^"']*["'][^>]*)\\srequired(?:=["'][^"']*["'])?/gi,"$1");
+    const optionalCategory = '<script>(function(){function relax(){' +
+      'var forms=document.querySelectorAll("form");forms.forEach(function(form){' +
+      'form.querySelectorAll("input,select,textarea").forEach(function(el){var key=((el.name||"")+" "+(el.id||"")).toLowerCase();var group=el.closest(".form-group,.form-item,.control-group");var text=group?group.textContent:"";if(key.indexOf("categor")>=0||text.indexOf("分类")>=0){el.required=false;el.removeAttribute("required");el.removeAttribute("aria-required");if(window.jQuery){try{window.jQuery(el).rules("remove","required");}catch(e){}}}});' +
+      'form.querySelectorAll("label").forEach(function(label){if(label.textContent.indexOf("分类")>=0){label.textContent=label.textContent.replace(/\\s*\\*/g,"").replace("（可选）","")+"（可选）";}});' +
+      '});}' +
+      'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",relax);else relax();' +
+      'if(window.MutationObserver)new MutationObserver(relax).observe(document.documentElement,{childList:true,subtree:true});})();</script>';
     html=html.includes("</body>")?html.replace("</body>",optionalCategory+"</body>"):html+optionalCategory;
   }
 

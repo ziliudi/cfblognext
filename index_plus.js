@@ -1457,64 +1457,30 @@ async function getThemeHtml(template_path){
   if(template_path==="index") return minimalIndexTemplate();
   let html = await (await fetch(OPT.themeURL+template_path+".html",{cf:{cacheTtl:600}})).text();
   
-  // 后台文章编辑器：使用浏览器原生 contenteditable，完全替换 Editor.md。
+  // 独立可视化文字编辑器：直接替换正文容器，不依赖异步挂载。
   if(template_path==="admin/index" || template_path==="admin/edit"){
-    html=html.replace(/<link[^>]+editormd\.css[^>]*>/gi,"");
-    html=html.replace(/<script[^>]+editor\.md@[^>]*><\/script>/gi,"");
-    html=html.replace(/var mdEditor = editormd\("content", \{[\s\S]*?\n\s*\}\);/,"");
-    if(template_path==="admin/edit") html=html.replace(/var articleJson = (<!--\{articleJson\}-->);/, "var articleJson = $1; window.cfblogInitialHtml = articleJson.contentHtml || articleJson.contentMD || '';");
-    const editorScript = `<style>
-      #cfblog-editor{border:1px solid #ccc;border-radius:4px;background:#fff;margin:16px 0 24px;width:100%;overflow:hidden}
-      #cfblog-editor-toolbar{display:flex;flex-wrap:wrap;gap:5px;padding:8px;border-bottom:1px solid #ddd;background:#f7f7f7}
-      #cfblog-editor-toolbar button{min-width:36px;height:36px;padding:5px 9px;border:1px solid #ccc;border-radius:4px;background:#fff;color:#333;font-size:15px}
-      #cfblog-editor-area{display:block;min-height:420px;padding:14px;outline:none;font:16px/1.8 -apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;overflow-wrap:anywhere}
-      #cfblog-editor-area:empty:before{content:"在这里输入文章正文…";color:#999}
-      #cfblog-editor-area img{max-width:100%;height:auto}
-      #cfblog-editor-area table{border-collapse:collapse;max-width:100%}
-      #cfblog-editor-area td,#cfblog-editor-area th{border:1px solid #ccc;padding:6px}
-      @media(max-width:600px){#cfblog-editor-area{min-height:55vh;padding:10px}#cfblog-editor-toolbar button{min-width:32px;padding:4px 7px}}
-    </style>
-    <script>
-    (function(){
-      function mount(){
-        var form=document.getElementById("addNewForm")||document.getElementById("editForm");
-        var old=document.getElementById("content");
-        if(!form||!old||document.getElementById("cfblog-editor"))return;
-        var initial="";
-        if(typeof articleJson!=="undefined"&&articleJson)initial=articleJson.contentHtml||articleJson.contentMD||"";
-        if(!initial&&window.cfblogInitialHtml)initial=window.cfblogInitialHtml;
-        var editor=document.createElement("section");editor.id="cfblog-editor";
-        editor.innerHTML='<div id="cfblog-editor-toolbar" role="toolbar" aria-label="文字编辑工具栏">' +
-          '<button type="button" data-cmd="undo" title="撤销">↶</button><button type="button" data-cmd="redo" title="重做">↷</button>' +
-          '<button type="button" data-cmd="bold" title="加粗"><b>B</b></button><button type="button" data-cmd="italic" title="斜体"><i>I</i></button><button type="button" data-cmd="underline" title="下划线"><u>U</u></button>' +
-          '<button type="button" data-block="h2">标题</button><button type="button" data-block="p">正文</button>' +
-          '<button type="button" data-cmd="insertUnorderedList">• 列表</button><button type="button" data-cmd="insertOrderedList">1. 列表</button>' +
-          '<button type="button" data-cmd="justifyLeft">左对齐</button><button type="button" data-cmd="justifyCenter">居中</button><button type="button" data-cmd="justifyRight">右对齐</button>' +
-          '<button type="button" data-action="link">链接</button><button type="button" data-action="image">图片</button><button type="button" data-action="quote">引用</button><button type="button" data-action="clear">清除格式</button>' +
-          '</div><div id="cfblog-editor-area" contenteditable="true" role="textbox" aria-label="文章正文" aria-multiline="true"></div>';
-        var area=editor.querySelector("#cfblog-editor-area");
-        var md=document.createElement("textarea");md.name="content-markdown-doc";md.hidden=true;
-        var htmlField=document.createElement("textarea");htmlField.name="content-html-code";htmlField.hidden=true;
-        old.replaceWith(editor);form.appendChild(md);form.appendChild(htmlField);
-        if(initial){if(/<\/?[a-z][\s\S]*>/i.test(initial))area.innerHTML=initial;else area.innerHTML=initial.split(/\r?\n/).map(function(line){return "<p>"+line.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")+"</p>";}).join("");}
-        function sync(){htmlField.value=area.innerHTML;md.value=area.innerText||area.textContent||"";}
-        editor.querySelector("#cfblog-editor-toolbar").addEventListener("click",function(ev){
-          var btn=ev.target.closest("button");if(!btn)return;area.focus();
-          if(btn.dataset.cmd)document.execCommand(btn.dataset.cmd,false,null);
-          else if(btn.dataset.block)document.execCommand("formatBlock",false,btn.dataset.block);
-          else if(btn.dataset.action==="link"){var u=prompt("请输入链接地址");if(u)document.execCommand("createLink",false,u);}
-          else if(btn.dataset.action==="image"){var u=prompt("请输入图片地址");if(u)document.execCommand("insertImage",false,u);}
-          else if(btn.dataset.action==="quote")document.execCommand("formatBlock",false,"blockquote");
-          else if(btn.dataset.action==="clear")document.execCommand("removeFormat",false,null);sync();
-        });
-        area.addEventListener("input",sync);
-        function wrapSave(name){if(typeof window[name]!=="function")return;var original=window[name];window[name]=function(){sync();return original.apply(this,arguments);};}
-        wrapSave("saveAddNew");wrapSave("saveEdit");sync();
-      }
-      if(window.jQuery)jQuery(mount);else if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",mount);else mount();
-    })();
-    </script>`;
-    html=html.includes("</body>")?html.replace("</body>",editorScript+"</body>"):html+editorScript;
+    html=html.replace(/<link\b[^>]*editormd[^>]*>/gi,"");
+    html=html.replace(/<script\b[^>]*editormd[^>]*><\/script>/gi,"");
+    html=html.replace(/var mdEditor\s*=\s*editormd\("content",\s*\{[\s\S]*?\n\s*\}\);/,"");
+    if(template_path==="admin/edit") html=html.replace(/var articleJson\s*=\s*(<!--\{articleJson\}-->);/,"var articleJson = $1; window.cfblogInitialHtml = articleJson.contentHtml || articleJson.contentMD || '';");
+    const editorMarkup = '<section id="cfblog-editor" style="border:1px solid #ccc;background:#fff;margin:12px 0;width:100%;">' +
+      '<div id="cfblog-editor-toolbar" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px;background:#f5f5f5;border-bottom:1px solid #ddd;">' +
+      '<button type="button" data-cmd="undo">撤销</button><button type="button" data-cmd="redo">重做</button><button type="button" data-cmd="bold"><b>加粗</b></button><button type="button" data-cmd="italic"><i>斜体</i></button><button type="button" data-cmd="underline"><u>下划线</u></button>' +
+      '<button type="button" data-block="h2">标题</button><button type="button" data-block="p">正文</button><button type="button" data-cmd="insertUnorderedList">项目列表</button><button type="button" data-cmd="insertOrderedList">编号列表</button>' +
+      '<button type="button" data-cmd="justifyLeft">左对齐</button><button type="button" data-cmd="justifyCenter">居中</button><button type="button" data-cmd="justifyRight">右对齐</button><button type="button" data-action="link">插入链接</button><button type="button" data-action="image">插入图片</button><button type="button" data-action="quote">引用</button><button type="button" data-action="clear">清除格式</button></div>' +
+      '<div id="cfblog-editor-area" contenteditable="true" role="textbox" aria-label="文章正文" aria-multiline="true" style="min-height:480px;padding:14px;outline:none;font:16px/1.8 Arial,Microsoft YaHei,sans-serif;overflow-wrap:anywhere;"><p><br></p></div></section>' +
+      '<textarea id="cfblog-content-md" name="content-markdown-doc" style="display:none"></textarea><textarea id="cfblog-content-html" name="content-html-code" style="display:none"></textarea>';
+    const oldContent = /<div\s+id="content">\s*<textarea[^>]*><\/textarea>\s*<\/div>/i;
+    if(!oldContent.test(html)) throw new Error("未找到主题正文容器 #content，停止输出不完整编辑页面");
+    html=html.replace(oldContent,editorMarkup);
+    const editorBehavior = '<script>(function(){function init(){' +
+      'var area=document.getElementById("cfblog-editor-area"),toolbar=document.getElementById("cfblog-editor-toolbar"),form=document.getElementById("addNewForm")||document.getElementById("editForm"),md=document.getElementById("cfblog-content-md"),hf=document.getElementById("cfblog-content-html");' +
+      'if(!area||!toolbar||!form||!md||!hf)return;var initial=window.cfblogInitialHtml||"";if(!initial&&typeof articleJson!=="undefined"&&articleJson)initial=articleJson.contentHtml||articleJson.contentMD||"";if(initial){if(/<\\/?[a-z][\\s\\S]*>/i.test(initial))area.innerHTML=initial;else area.textContent=initial;}' +
+      'function sync(){hf.value=area.innerHTML;md.value=area.innerText||area.textContent||"";}' +
+      'toolbar.addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;area.focus();if(b.dataset.cmd)document.execCommand(b.dataset.cmd,false,null);else if(b.dataset.block)document.execCommand("formatBlock",false,b.dataset.block);else if(b.dataset.action==="link"){var u=prompt("请输入链接地址");if(u)document.execCommand("createLink",false,u);}else if(b.dataset.action==="image"){var u=prompt("请输入图片地址");if(u)document.execCommand("insertImage",false,u);}else if(b.dataset.action==="quote")document.execCommand("formatBlock",false,"blockquote");else if(b.dataset.action==="clear")document.execCommand("removeFormat",false,null);sync();});' +
+      'area.addEventListener("input",sync);form.addEventListener("submit",sync,true);document.addEventListener("click",function(e){if(e.target.closest("#btn_saveAddNew,#btn_saveEdit"))sync();},true);sync();}' +
+      'if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();})();</script>';
+    html=html.includes("</body>")?html.replace("</body>",editorBehavior+"</body>"):html+editorBehavior;
   }
   if("admin/index"===template_path){
     const workflowDashboard = `

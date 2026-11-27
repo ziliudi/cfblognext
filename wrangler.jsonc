@@ -9,5 +9,11 @@
       "binding": "CFBLOG",
       "id": "5e4ef30eda9444269532f9717ccacd35"
     }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "BLOG_ASSETS",
+      "bucket_name": "cfblognext-assets"
+    }
   ]
 }

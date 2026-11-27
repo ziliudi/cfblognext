@@ -1753,7 +1753,7 @@ async function getThemeHtml(template_path, articleId=null){
   }
   
 
-  // 编辑器分类和标签：编辑、新建、草稿、定时文章统一从文章数据回填。
+  // 编辑器分类和标签：新建、文章列表编辑、草稿编辑、定时编辑统一使用独立且必定可见的控件。
   if(template_path==="admin/index" || template_path==="admin/edit"){
     const existing=await getAllArticlesList(),names=new Set(["散文","诗词","杂谈"]);
     for(const item of existing){
@@ -1773,19 +1773,46 @@ async function getThemeHtml(template_path, articleId=null){
     editorMeta.categories.forEach(v=>names.add(v));
     const categoryData=JSON.stringify(Array.from(names)).replace(/</g,"\\u003c");
     const metaData=JSON.stringify(editorMeta).replace(/</g,"\\u003c");
-    const script='<script>(function(){const names='+categoryData+',meta='+metaData+';function init(){' +
-      // 新建页和三个编辑入口统一使用同一套表单初始化；主题表单 ID 变化时按字段自动兜底定位。
-      'const form=document.querySelector("form#addNewForm,form#editForm")||Array.from(document.forms).find(function(f){return f.querySelector("#category,[name*=categor i]")&&f.querySelector("#tags,[name*=tag i]");});if(!form)return;' +
-      'let field=form.querySelector("#category,[name*=categor i]");' +
-      'if(field){const select=document.createElement("select");select.id="category";select.name="category";select.multiple=true;select.className=field.className||"form-control";select.size=Math.min(6,Math.max(3,names.length+1));' +
-      'names.forEach(function(n){const o=document.createElement("option");o.value=n;o.textContent=n;o.selected=meta.categories.includes(n);select.appendChild(o);});' +
-      'const custom=document.createElement("option");custom.value="__cfblog_custom__";custom.textContent="＋ 自定义";select.appendChild(custom);field.replaceWith(select);' +
-      'select.addEventListener("change",function(){if(!Array.from(select.selectedOptions).some(o=>o.value==="__cfblog_custom__"))return;const value=prompt("请输入自定义分类名称");const name=String(value||"").trim();if(name){let o=Array.from(select.options).find(x=>x.value===name);if(!o){o=document.createElement("option");o.value=name;o.textContent=name;select.insertBefore(o,custom);}o.selected=true;}custom.selected=false;});' +
-      'const note=document.createElement("small");note.className="help-block";note.textContent="可多选；自定义分类保存文章后会自动加入分类选项。";select.insertAdjacentElement("afterend",note);}' +
-      'let tag=form.querySelector("#tags,[name=tags],[name=\"tags[]\"],[name*=\"tag\" i]);' +
-      'if(tag){if(tag.tagName==="SELECT"||tag.type==="hidden"||tag.type==="checkbox"){const input=document.createElement("input");input.type="text";input.className=tag.className||"form-control";input.id="tags";input.name="tags";tag.replaceWith(input);tag=input;}else{tag.type="text";tag.name="tags";}tag.value=meta.tags.join(", ");tag.placeholder="多个标签用英文逗号 , 分隔";' +
-      'const note=document.createElement("small");note.className="help-block";note.textContent="多个标签请用英文逗号 , 分隔。";tag.insertAdjacentElement("afterend",note);}' +
-      '}if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();})();</script>';
+    const script=`<script>(function(){
+      const categoryNames=${categoryData},meta=${metaData};
+      function init(){
+        const form=document.getElementById("addNewForm")||document.getElementById("editForm");
+        if(!form||document.getElementById("cfblog-meta-editor"))return;
+        // 旧主题字段可能不存在或名称不同；统一移除旧字段，避免重复提交和校验冲突。
+        form.querySelectorAll("input,select,textarea").forEach(function(el){
+          const key=((el.name||"")+" "+(el.id||"")).toLowerCase();
+          if(key.indexOf("categor")>=0||key.indexOf("tag")>=0){
+            el.required=false;el.removeAttribute("required");el.remove();
+          }
+        });
+        const panel=document.createElement("section");
+        panel.id="cfblog-meta-editor";
+        panel.className="form-group";
+        panel.style.cssText="border:1px solid #ddd;border-radius:4px;padding:12px;margin:12px 0;background:#fafafa";
+        const title=document.createElement("strong");title.textContent="文章分类与标签";panel.appendChild(title);
+        const categoryWrap=document.createElement("div");categoryWrap.className="form-group";categoryWrap.style.marginTop="10px";
+        const categoryLabel=document.createElement("label");categoryLabel.textContent="分类（可多选）";categoryWrap.appendChild(categoryLabel);
+        const select=document.createElement("select");select.id="category";select.name="category";select.multiple=true;select.size=Math.min(7,Math.max(4,categoryNames.length+1));select.className="form-control";
+        categoryNames.forEach(function(name){const option=document.createElement("option");option.value=name;option.textContent=name;option.selected=meta.categories.includes(name);select.appendChild(option);});
+        const custom=document.createElement("option");custom.value="__cfblog_custom__";custom.textContent="＋ 自定义";select.appendChild(custom);
+        select.addEventListener("change",function(){
+          if(!Array.from(select.selectedOptions).some(function(option){return option.value==="__cfblog_custom__";}))return;
+          const entered=prompt("请输入自定义分类名称");const name=String(entered||"").trim();
+          if(name){let option=Array.from(select.options).find(function(item){return item.value===name;});if(!option){option=document.createElement("option");option.value=name;option.textContent=name;select.insertBefore(option,custom);}option.selected=true;}
+          custom.selected=false;
+        });
+        categoryWrap.appendChild(select);
+        const categoryHelp=document.createElement("small");categoryHelp.className="help-block";categoryHelp.textContent="默认分类：散文、诗词、杂谈；选择“自定义”可新增分类。分类可多选。";categoryWrap.appendChild(categoryHelp);
+        panel.appendChild(categoryWrap);
+        const tagWrap=document.createElement("div");tagWrap.className="form-group";
+        const tagLabel=document.createElement("label");tagLabel.textContent="标签";tagWrap.appendChild(tagLabel);
+        const tag=document.createElement("input");tag.type="text";tag.id="tags";tag.name="tags";tag.className="form-control";tag.placeholder="多个标签请用英文逗号 , 分隔";tag.value=meta.tags.join(", ");tagWrap.appendChild(tag);
+        const tagHelp=document.createElement("small");tagHelp.className="help-block";tagHelp.textContent="直接输入标签，多个标签使用英文逗号分隔。";tagWrap.appendChild(tagHelp);
+        panel.appendChild(tagWrap);
+        form.insertBefore(panel,form.firstChild);
+      }
+      if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init);else init();
+    })();</script>`;
     html=html.includes("</body>")?html.replace("</body>",script+"</body>"):html+script;
   }
 
